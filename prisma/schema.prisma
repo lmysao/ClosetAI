@@ -1,0 +1,115 @@
+// Smart Wardrobe - AI-powered clothing management system
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Uma peça de roupa/acessório no guarda-roupa
+model Garment {
+  id          String   @id @default(cuid())
+  /// nome amigável, ex: "Camiseta preta lisa"
+  name        String
+  /// categoria principal: camiseta, camisa, bermuda, calca, cueca, meia, tenis, acessorio, perfume, casaco, jaqueta
+  category    String
+  /// subcategoria livre, ex: "social", "regata", "slim"
+  subcategory String?
+  /// cor principal em texto, ex: "preto"
+  color       String?
+  /// cor em hex para preview, ex: "#000000"
+  colorHex    String?
+  /// padrao: liso, listrado, xadrez, estampado, liso
+  pattern     String?
+  /// tecido: algodao, poliester, jeans, linho, malha
+  fabric      String?
+  /// estacao: verao, inverno, primavera, outono, todas
+  season      String   @default("todas")
+  /// formalidade: casual, casual-chique, social, esporte, elegante
+  formality   String   @default("casual")
+  /// genero: masculino, feminino, unissex
+  gender      String   @default("masculino")
+  /// status: disponivel, suja (no cesto), reusavel (usada mas pode usar de novo), lavando
+  status      String   @default("disponivel")
+  /// quantas vezes pode reusar antes de ir pro cesto (cuecas = 0, camisetas = 1, calcas = 3)
+  maxReuses   Int      @default(1)
+  /// quantas vezes já foi usada no total
+  timesWorn   Int      @default(0)
+  /// quantas vezes reusou no ciclo atual
+  reuseCount  Int      @default(0)
+  lastWornAt  DateTime?
+  /// imagem em base64 data URL
+  imageData   String
+  brand       String?
+  notes       String?
+  favorite    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@index([gender])
+}
+
+/// Um look/composição salva (uniforme ou usada)
+model Outfit {
+  id         String   @id @default(cuid())
+  name       String?
+  /// JSON array de garment IDs
+  garmentIds String   @default("[]")
+  /// tipo de evento para o qual foi sugerida
+  eventType  String?
+  eventTime  String?
+  /// razão explicada pela IA
+  reason     String?
+  wornAt     DateTime?
+  /// marcada como uniforme (look fixo)
+  isUniform  Boolean  @default(false)
+  /// marcada como favorita
+  favorite   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([isUniform])
+  @@index([favorite])
+}
+
+/// Registro de lavagem
+model WashLog {
+  id         String   @id @default(cuid())
+  /// JSON array de garment IDs lavados
+  garmentIds String
+  washedAt   DateTime @default(now())
+}
+
+/// Dica de compra gerada pela IA
+model ShoppingTip {
+  id        String   @id @default(cuid())
+  title     String
+  /// categoria sugerida
+  category  String
+  /// baixa, media, alta
+  priority  String   @default("media")
+  reason    String?
+  /// acessorio, perfume, roupa, etc
+  kind      String   @default("roupa")
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([resolved])
+}
+
+/// Evento agendado (saida casual, trabalho, festa elegante)
+model EventItem {
+  id        String   @id @default(cuid())
+  title     String
+  type      String   @default("casual")
+  /// data ISO
+  date      DateTime
+  time      String?
+  location  String?
+  notes     String?
+  createdAt DateTime @default(now())
+}
