@@ -15,12 +15,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from '@/components/ui/dialog';
 import { useSuggestOutfits, useUseOutfit, useStats } from '@/lib/hooks';
 import { EVENT_TYPES, CATEGORIES } from '@/lib/constants';
+import { OutfitBuilder } from '@/components/outfit-builder';
 import type { EventType, OutfitSuggestion } from '@/lib/types';
 import { toast } from 'sonner';
 import {
   Wand2, Loader2, Sparkles, Check, Clock, Cloud, Shirt, CheckCircle2, Star, ArrowRight,
+  Pencil, Hand,
 } from 'lucide-react';
 
 const vibeColors: Record<string, string> = {
@@ -31,7 +36,10 @@ const vibeColors: Record<string, string> = {
   esportivo: 'bg-sky-500/10 text-sky-600 border-sky-500/30',
 };
 
+type Mode = 'ai' | 'manual';
+
 export function Outfits() {
+  const [mode, setMode] = useState<Mode>('ai');
   const [eventType, setEventType] = useState<EventType>('casual');
   const [eventTime, setEventTime] = useState('');
   const [weather, setWeather] = useState('');
@@ -40,6 +48,8 @@ export function Outfits() {
   const [uniformName, setUniformName] = useState('');
   const [suggestions, setSuggestions] = useState<OutfitSuggestion[]>([]);
   const [usedSuggestion, setUsedSuggestion] = useState<string | null>(null);
+  // Edição de sugestão da IA: abre o builder pré-preenchido
+  const [editingSuggestion, setEditingSuggestion] = useState<OutfitSuggestion | null>(null);
 
   const suggestMut = useSuggestOutfits();
   const useMut = useUseOutfit();
@@ -89,14 +99,76 @@ export function Outfits() {
 
   return (
     <div className="space-y-5 animate-fade-in-up">
-      <div>
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <Wand2 className="h-5 w-5 text-primary" /> Combinar com IA
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Diga onde vai e quando. A IA monta 3 looks diferentes das suas peças.
-        </p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Wand2 className="h-5 w-5 text-primary" /> Combinar
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Deixe a IA sugerir 3 looks ou monte o seu do zero — e personalize à vontade.
+          </p>
+        </div>
+        {/* Toggle de modo */}
+        <div className="inline-flex rounded-lg border bg-muted/50 p-0.5">
+          <button
+            type="button"
+            onClick={() => setMode('ai')}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
+              mode === 'ai' ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Wand2 className="h-3.5 w-3.5" /> Com IA
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('manual')}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
+              mode === 'manual' ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Hand className="h-3.5 w-3.5" /> Manual
+          </button>
+        </div>
       </div>
+
+      {/* MODO MANUAL: builder do zero */}
+      {mode === 'manual' ? (
+        <>
+          {/* Seletor de evento (contexto) */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Contexto da saída (opcional)</CardTitle>
+              <CardDescription>Ajuda a lembrar a ocasião ao salvar como uniforme</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {(Object.entries(EVENT_TYPES) as Array<[EventType, typeof EVENT_TYPES[EventType]]>).map(([key, ev]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setEventType(key)}
+                    className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all ${
+                      eventType === key
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:border-primary/40'
+                    }`}
+                  >
+                    <span>{ev.emoji}</span> {ev.label}
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <OutfitBuilder
+            eventType={eventType}
+            title="Monte seu look do zero"
+            description="Escolha peça por peça em cada camada. Você tem controle total — pode trocar ou remover o que quiser."
+          />
+        </>
+      ) : (
+        <>
+      {/* MODO IA: formulário + sugestões */}
 
       {/* Formulário de evento */}
       <Card>
@@ -250,14 +322,24 @@ export function Outfits() {
                       Combinação usada!
                     </Button>
                   ) : (
-                    <Button
-                      onClick={() => handleUse(sug)}
-                      disabled={useMut.isPending}
-                      className="flex-1"
-                    >
-                      {useMut.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Check className="h-4 w-4 mr-1.5" />}
-                      Usar este look
-                    </Button>
+                    <>
+                      <Button
+                        onClick={() => handleUse(sug)}
+                        disabled={useMut.isPending}
+                        className="flex-1"
+                      >
+                        {useMut.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Check className="h-4 w-4 mr-1.5" />}
+                        Usar este look
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setEditingSuggestion(sug)}
+                        title="Editar: trocar ou remover peças"
+                      >
+                        <Pencil className="h-4 w-4 mr-1.5" />
+                        Editar
+                      </Button>
+                    </>
                   )}
                 </div>
                 {usedSuggestion === sug.id && (
@@ -282,9 +364,42 @@ export function Outfits() {
             <p className="text-sm text-muted-foreground mt-1">
               Preencha os detalhes acima e a IA vai criar 3 opções diferentes pra você.
             </p>
+            <p className="text-xs text-muted-foreground mt-3">
+              💡 Ou mude para o modo <strong className="text-foreground">Manual</strong> no topo para montar do zero.
+            </p>
           </CardContent>
         </Card>
       )}
+        </>
+      )}
+
+      {/* Dialog de edição de sugestão da IA */}
+      <Dialog open={!!editingSuggestion} onOpenChange={(v) => { if (!v) setEditingSuggestion(null); }}>
+        <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto custom-scroll">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-primary" /> Personalizar look
+            </DialogTitle>
+            <DialogDescription>
+              {editingSuggestion ? `“${editingSuggestion.name}” — ` : ''}Tire peças que não quer hoje, troque por outras. Você manda.
+            </DialogDescription>
+          </DialogHeader>
+          {editingSuggestion && (
+            <OutfitBuilder
+              initialIds={editingSuggestion.garmentIds}
+              initialName={editingSuggestion.name}
+              eventType={eventType}
+              title=""
+              description=""
+              onUsed={() => {
+                setUsedSuggestion(editingSuggestion.id);
+                setEditingSuggestion(null);
+              }}
+              onCancel={() => setEditingSuggestion(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

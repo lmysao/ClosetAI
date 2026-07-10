@@ -153,6 +153,29 @@ export const OUTFIT_LAYERS = {
   acessorio: ['acessorio', 'relogio', 'cinto', 'bone', 'perfume'],
 } as const;
 
+// Slots do builder de looks (manual + edição de sugestão da IA)
+// multi = pode ter várias peças (acessórios); optional = pode ficar vazio
+export interface BuilderSlot {
+  key: string;
+  label: string;
+  emoji: string;
+  categories: string[];
+  multi: boolean;
+  optional: boolean;
+}
+
+export const BUILDER_SLOTS: BuilderSlot[] = [
+  { key: 'superior',  label: 'Superior',      emoji: '👕', categories: ['camiseta', 'camisa', 'regata', 'blusa'], multi: false, optional: false },
+  { key: 'inferior',  label: 'Inferior',      emoji: '👖', categories: ['bermuda', 'calca'],                     multi: false, optional: false },
+  { key: 'intima',    label: 'Cueca/Calcinha', emoji: '🩲', categories: ['cueca', 'calcinha', 'suter'],           multi: false, optional: false },
+  { key: 'meia',      label: 'Meias',         emoji: '🧦', categories: ['meia'],                                 multi: false, optional: false },
+  { key: 'calcado',   label: 'Calçado',       emoji: '👟', categories: ['tenis', 'sapato', 'chinelo'],            multi: false, optional: false },
+  { key: 'externa',   label: 'Casaco',        emoji: '🧥', categories: ['casaco', 'jaqueta'],                     multi: false, optional: true  },
+  { key: 'acessorio', label: 'Acessórios',    emoji: '⌚', categories: ['acessorio', 'relogio', 'cinto', 'bone'], multi: true,  optional: true  },
+  { key: 'perfume',   label: 'Perfume',       emoji: '🧴', categories: ['perfume'],                               multi: false, optional: true  },
+];
+
+
 // Helper: calcular maxReuses padrão por categoria
 export function defaultMaxReuses(category: string): number {
   return CATEGORIES[category]?.defaultMaxReuses ?? 1;

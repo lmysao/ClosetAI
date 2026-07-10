@@ -42,3 +42,27 @@ Stage Summary:
 - Regras de reuso implementadas: cuecas/calcinhas/meias sempre sujas (maxReuses=0), camisetas 1x, camisas 2x, bermudas 2x, calças 4x, calçados/casacos 5-6x
 - Perfumes Coffee Unique + Coffee Essencial (O Boticário) destacados + Malbec/Egeo/Kaiak como alternativas
 - Lint passa sem erros, dev server sem erros runtime
+
+---
+Task ID: 12
+Agent: main
+Task: Adicionar personalização de looks — montar do zero + editar sugestão da IA
+
+Work Log:
+- Adicionado BUILDER_SLOTS em constants.ts: 8 camadas (superior, inferior, intima, meia, calcado, casaco opcional, acessórios multi, perfume opcional)
+- Criado GarmentPickerDialog: modal com busca + grid de peças filtradas por categoria e status (disponível/reusável, íntimas só disponível)
+- Criado OutfitBuilder: componente reutilizável que mostra slots por camada, permite Escolher/Trocar/Remover peças, valida obrigatórios, salvar como uniforme, confirmar uso
+- Modificado Outfits section: toggle "Com IA" / "Manual" no topo
+  - Modo Manual: seletor de evento + OutfitBuilder do zero
+  - Modo IA: formulário + 3 sugestões, cada uma com botão "Editar" que abre OutfitBuilder pré-preenchido em dialog
+- Corrigido bug de timing: picker sempre montado (não condicional) para evitar perda de state update do Radix Dialog
+- Verificação Agent Browser:
+  - Modo manual: preencheu 5 slots obrigatórios, "Usar este look (5 peças)" habilitado, confirmou, toast "Look personalizado marcado como usado!"
+  - Modo IA: gerou 3 sugestões, clicou "Editar", removeu peça (slot voltou para vazio), trocou por outra, preencheu meia, confirmou uso do look personalizado
+  - Sem erros de console, lint limpo
+
+Stage Summary:
+- Funcionalidade de personalização completa: montar do zero E editar sugestão da IA
+- Usuário pode tirar peças (ex: relógio), trocar por outras (ex: pulseira), adicionar acessórios
+- Validação de slots obrigatórios impede usar look incompleto
+- Dialog de confirmação mostra todas as peças antes de marcar como usado
