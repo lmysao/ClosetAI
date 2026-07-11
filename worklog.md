@@ -269,3 +269,36 @@ Stage Summary:
 - Não usa mais flex-1/min-h-0/overflow aninhado (que causava colapso no mobile)
 - Funciona em mobile (390px) e desktop (1280px)
 - Botão Salvar sempre acessível (sticky bottom-0)
+
+---
+Task ID: 13
+Agent: main
+Task: Visualização frente/verso como flip card (tocar para virar)
+
+Work Log:
+- Escolhida abordagem tap-to-flip (virar ao tocar) com animação 3D de carta, mais elegante que carrossel para frente/verso.
+- garment-detail-sheet.tsx:
+  - Adicionado estado `flipped` (boolean) + useEffect para resetar ao trocar de peça
+  - Import RotateCw do lucide-react
+  - Substituído layout lado-a-lado por flip card 3D:
+    - Container com `perspective: 1200px`
+    - Card interno com `transformStyle: preserve-3d` + `transition-transform duration-500 ease-out`
+    - `transform: rotateY(180deg)` quando flipped
+    - Face frente: `backfaceVisibility: hidden` (escondida quando virada)
+    - Face verso: `backfaceVisibility: hidden` + `transform: rotateY(180deg)` (pré-rotacionada)
+    - Clique no card alterna flipped (só se garment.backImage existir)
+  - Indicador "Toque para ver o verso" com RotateCw animado (animate-pulse) na frente
+  - Badge "📷 toque para voltar à frente" no verso
+  - Dots indicadores (Frente/Verso) abaixo da imagem — clicáveis, o ativo fica maior (w-6 bg-primary)
+  - Peças sem backImage: sem indicador, sem dots, clique não faz nada
+- Verificação Agent Browser (mobile 390x844):
+  - Peça COM verso: frente mostra "FRENTE" + "Toque para ver o verso" → clicar vira para verso (transform rotateY 180deg) → verso mostra "ESTAMPA" + "📷 toque para voltar à frente" → clicar volta
+  - Dots funcionam: "Ver frente" → rotateY(0deg), "Ver verso" → rotateY(180deg)
+  - Peça SEM verso: só "FRENTE", sem indicador/dots, clique não muda transform ✓
+  - Sem erros, lint limpo
+
+Stage Summary:
+- Flip card 3D elegante implementado: toque na foto para virar entre frente e verso
+- Animação suave 500ms, indicadores visuais (dots + texto pulsante)
+- Funciona perfeitamente em mobile e desktop
+- Peças sem verso não tentam virar (graceful)

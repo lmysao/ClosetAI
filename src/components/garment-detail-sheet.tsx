@@ -19,9 +19,9 @@ import { useDeleteGarment, useUpdateGarment, useWashGarments } from '@/lib/hooks
 import { toast } from 'sonner';
 import {
   Trash2, Heart, Droplets, RefreshCw, Shirt, Calendar, Tag, Palette, Sparkles,
-  Pencil, Save, X, AlertTriangle,
+  Pencil, Save, X, AlertTriangle, RotateCw,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,6 +47,13 @@ export function GarmentDetailSheet({
   const washMut = useWashGarments();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editCare, setEditCare] = useState(false);
+  const [flipped, setFlipped] = useState(false);
+
+  // Resetar flip ao trocar de peça
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFlipped(false);
+  }, [garment?.id]);
 
   // Campos editáveis do modo "Editar cuidados"
   const [editDefects, setEditDefects] = useState('');
@@ -147,30 +154,79 @@ export function GarmentDetailSheet({
           </SheetHeader>
 
           <div className="mt-4">
-            <div className="flex gap-3">
-              <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-muted flex-1">
-                <img src={garment.imageData} alt={garment.name} className="w-full h-full object-cover" />
-                <div className="absolute top-3 right-3">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-background/90 backdrop-blur px-3 py-1 text-xs font-semibold shadow">
-                    {status.emoji} {status.label}
+            <div
+              className="relative aspect-square w-full rounded-xl overflow-hidden bg-muted select-none"
+              style={{ perspective: '1200px' }}
+            >
+              {/* Card que vira */}
+              <div
+                className="relative w-full h-full transition-transform duration-500 ease-out cursor-pointer"
+                style={{
+                  transformStyle: 'preserve-3d',
+                  transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                }}
+                onClick={() => garment.backImage && setFlipped((f) => !f)}
+                title={garment.backImage ? 'Toque para virar a peça' : undefined}
+              >
+                {/* Frente */}
+                <div
+                  className="absolute inset-0"
+                  style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
+                >
+                  <img src={garment.imageData} alt={garment.name} className="w-full h-full object-cover" />
+                  <div className="absolute top-3 right-3">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-background/90 backdrop-blur px-3 py-1 text-xs font-semibold shadow">
+                      {status.emoji} {status.label}
+                    </span>
+                  </div>
+                  <span className="absolute top-3 left-3 rounded-full bg-background/90 backdrop-blur px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shadow">
+                    Frente
                   </span>
+                  {garment.backImage && (
+                    <span className="absolute bottom-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-full bg-background/90 backdrop-blur px-2.5 py-1 text-[10px] font-medium shadow animate-pulse">
+                      <RotateCw className="h-3 w-3" /> Toque para ver o verso
+                    </span>
+                  )}
                 </div>
-                <span className="absolute top-3 left-3 rounded-full bg-background/90 backdrop-blur px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shadow">
-                  Frente
-                </span>
+
+                {/* Verso (só renderiza se existir) */}
+                {garment.backImage && (
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      backfaceVisibility: 'hidden',
+                      WebkitBackfaceVisibility: 'hidden',
+                      transform: 'rotateY(180deg)',
+                    }}
+                  >
+                    <img src={garment.backImage} alt={`${garment.name} — verso`} className="w-full h-full object-cover" />
+                    <span className="absolute top-3 left-3 rounded-full bg-background/90 backdrop-blur px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shadow">
+                      Verso
+                    </span>
+                    <Badge variant="secondary" className="absolute bottom-3 left-1/2 -translate-x-1/2 font-normal text-[10px]">
+                      📷 toque para voltar à frente
+                    </Badge>
+                  </div>
+                )}
               </div>
-              {garment.backImage ? (
-                <div className="relative aspect-square w-28 shrink-0 rounded-xl overflow-hidden bg-muted">
-                  <img src={garment.backImage} alt={`${garment.name} — verso`} className="w-full h-full object-cover" />
-                  <span className="absolute top-2 left-2 rounded-full bg-background/90 backdrop-blur px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shadow">
-                    Verso
-                  </span>
-                  <Badge variant="secondary" className="absolute bottom-2 left-2 right-2 justify-center font-normal text-[10px]">
-                    📷 foto do verso
-                  </Badge>
-                </div>
-              ) : null}
             </div>
+            {/* Indicador de páginas (dots) quando tem verso */}
+            {garment.backImage && (
+              <div className="flex items-center justify-center gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setFlipped(false)}
+                  className={`h-1.5 rounded-full transition-all ${!flipped ? 'w-6 bg-primary' : 'w-1.5 bg-muted-foreground/40'}`}
+                  aria-label="Ver frente"
+                />
+                <button
+                  type="button"
+                  onClick={() => setFlipped(true)}
+                  className={`h-1.5 rounded-full transition-all ${flipped ? 'w-6 bg-primary' : 'w-1.5 bg-muted-foreground/40'}`}
+                  aria-label="Ver verso"
+                />
+              </div>
+            )}
           </div>
 
           {/* Stats de uso */}
