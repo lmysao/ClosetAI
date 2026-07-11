@@ -213,3 +213,33 @@ Stage Summary:
   8. ✅ Reserva de conjunto para evento futuro (exclui peças de outras combinações)
   9. ✅ Modo viagem/longe de casa (IA sugere conjunto por destino/clima/contexto/dias)
 - Sistema completo e funcional end-to-end
+
+---
+Task ID: 11
+Agent: main
+Task: Corrigir scroll do dialog de adicionar em lote (botões escondidos/cortados)
+
+Work Log:
+- Problema: DialogContent tinha overflow-hidden + grid interna com max-h-[55vh] fixo → o rodapé (botão Salvar) ficava depois da grid e era cortado em telas menores, especialmente na aba "Foto vestida" onde não dava pra salvar.
+- Solução: reestruturação do layout com flexbox adequado:
+  - DialogContent: max-h-[92vh] flex flex-col overflow-hidden (header fixo no topo)
+  - DialogHeader: shrink-0 (não comprime)
+  - Tabs: flex-1 min-h-0 flex flex-col (preenche espaço restante)
+  - TabsContent: flex-1 min-h-0 overflow-hidden flex flex-col + data-[state=inactive]:hidden (esconde tab inativa corretamente)
+  - Cada tab (MultiPhotosTab/WornOutfitTab): flex flex-col gap-3 min-h-0 flex-1
+    - Toolbar: shrink-0 (fixa no topo)
+    - Grid de cards: flex-1 min-h-0 overflow-y-auto (scrolla no espaço disponível, sem max-h fixo)
+    - Rodapé com botão Salvar: shrink-0 bg-background border-t (fixo no fundo, sempre visível)
+  - Na aba Foto vestida: foto usa md:sticky md:top-0 md:self-start (fica visível enquanto rola a lista de peças ao lado)
+- Removido max-h-[55vh] que causava o corte. Agora a grid usa flex-1 e o rodapé é sempre visível.
+- Verificação Agent Browser (viewport mobile 390x844):
+  - Aba Foto vestida: upload de imagem de teste → IA detectou 2 peças → botão "Salvar peças selecionadas (2)" visível (bottom=761px em viewport 844px) ✓
+  - Aba Múltiplas fotos: upload de 3 imagens → 2 analisadas com sucesso, 1 erro 429 (rate limit) tratado graciosamente → botão "Salvar todas (2)" visível e habilitado ✓
+  - Scroll na lista de cards funciona e o botão Salvar permanece fixo/visível (bottom=761 não muda com scroll) ✓
+  - Sem erros de console, lint limpo
+
+Stage Summary:
+- Problema de scroll/responsividade do batch-add-dialog resolvido
+- Botões de salvar agora SEMPRE visíveis no rodapé do dialog (shrink-0 + bg-background)
+- Lista de peças/cards scrolla independentemente no espaço disponível (flex-1 + overflow-y-auto)
+- Funciona em mobile (390px) e desktop
