@@ -46,6 +46,16 @@ model Garment {
   brand       String?
   notes       String?
   favorite    Boolean  @default(false)
+  /// imagem do verso (opcional) — para estampas/logos nas costas
+  backImage   String?
+  /// instruções de lavagem (ex: "lavar à mão em água fria", "não usar alvejante")
+  careInstructions String?
+  /// restrições de uso (ex: "não usar em dias de chuva", "evitar contato com água")
+  usageRestrictions String?
+  /// defeitos detectados pela IA ou pelo usuário (ex: "buraco perto da gola", "mancha vermelha no bolso")
+  defects     String?
+  /// dicas de salvar/conservar a peça (ex: "mancha de gordura sai com detergente", "manga bufante volta ao normal com vapor")
+  careTips    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -111,5 +121,62 @@ model EventItem {
   time      String?
   location  String?
   notes     String?
+  createdAt DateTime @default(now())
+}
+
+/// Conjunto de peças reservado para evento futuro
+model ReservedSet {
+  id          String   @id @default(cuid())
+  name        String
+  /// tipo de evento: casual, trabalho, social, elegante, etc
+  eventType   String   @default("casual")
+  eventDate   DateTime
+  eventTime   String?
+  /// condicoes: clima, local, observacoes
+  conditions  String?
+  /// JSON array de garment IDs reservados
+  garmentIds  String   @default("[]")
+  /// razao da escolha (preenchida pela IA se aplicavel)
+  reason      String?
+  /// status: reservado, usado, cancelado
+  status      String   @default("reservado")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([eventDate])
+}
+
+/// Plano de viagem / período longe de casa
+model TravelPlan {
+  id          String   @id @default(cuid())
+  destination String
+  startDate   DateTime
+  endDate     DateTime
+  /// clima previsto: "frio 10°C", "tropical 30°C", "chuvoso"
+  weather     String?
+  /// meio de transporte: aviao, carro, onibus, moto
+  transport   String?
+  /// contexto: chacara, piscina, praia, trabalho, visita familia
+  context     String?
+  /// duracao em dias
+  duration    Int?
+  /// JSON array de garment IDs sugeridos pela IA
+  garmentIds  String   @default("[]")
+  /// razao explicada pela IA
+  reason      String?
+  notes       String?
+  /// status: planejada, em-viagem, concluida
+  status      String   @default("planejada")
+  createdAt   DateTime @default(now())
+
+  @@index([status])
+}
+
+/// Foto de modelo (referência do usuário para visualização de looks)
+model ModelPhoto {
+  id        String   @id @default(cuid())
+  label     String?
+  imageData String
   createdAt DateTime @default(now())
 }

@@ -57,9 +57,14 @@ export async function POST(req: NextRequest) {
       status: body.status ?? 'disponivel',
       maxReuses,
       imageData: body.imageData,
+      backImage: body.backImage ?? null,
       brand: body.brand ?? null,
       notes: body.notes ?? null,
       favorite: body.favorite ?? false,
+      careInstructions: body.careInstructions ?? null,
+      usageRestrictions: body.usageRestrictions ?? null,
+      defects: body.defects ?? null,
+      careTips: body.careTips ?? null,
     },
   });
 

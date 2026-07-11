@@ -17,8 +17,9 @@ import { CATEGORIES, CATEGORY_GROUPS, STATUS_LABELS } from '@/lib/constants';
 import { GarmentCard } from '@/components/garment-card';
 import { GarmentDetailSheet } from '@/components/garment-detail-sheet';
 import { AddGarmentDialog } from '@/components/add-garment-dialog';
+import { BatchAddDialog } from '@/components/batch-add-dialog';
 import type { Garment } from '@/lib/types';
-import { Plus, Search, Sparkles, Shirt, Loader2, Filter } from 'lucide-react';
+import { Plus, Search, Sparkles, Shirt, Loader2, Filter, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function Wardrobe() {
@@ -29,6 +30,7 @@ export function Wardrobe() {
   const [selected, setSelected] = useState<Garment | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
   const [addCategory, setAddCategory] = useState<string | undefined>(undefined);
 
   const { data, isLoading } = useGarments({ category, status, gender, search });
@@ -87,6 +89,10 @@ export function Wardrobe() {
           <Button size="sm" onClick={() => openAdd()}>
             <Plus className="h-4 w-4 mr-1.5" />
             Adicionar
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setBatchOpen(true)} title="Adicionar várias peças de uma vez">
+            <Layers className="h-4 w-4 mr-1.5" />
+            Em lote
           </Button>
         </div>
       </div>
@@ -203,6 +209,7 @@ export function Wardrobe() {
         onOpenChange={setAddOpen}
         defaultCategory={addCategory}
       />
+      <BatchAddDialog open={batchOpen} onOpenChange={setBatchOpen} />
     </div>
   );
 }

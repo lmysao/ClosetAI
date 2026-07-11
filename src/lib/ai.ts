@@ -2,8 +2,8 @@
 // z-ai-web-dev-sdk só pode ser usado no backend (server-side)
 
 import ZAI from 'z-ai-web-dev-sdk';
-import { CATEGORIES, FORMALITIES, PREFERRED_PERFUMES, OUTFIT_LAYERS, COLOR_PALETTE, defaultMaxReuses, canReuse } from './constants';
-import type { Garment, AnalyzeResult, OutfitSuggestion, SuggestRequest, ShoppingTip } from './types';
+import { CATEGORIES, FORMALITIES, PREFERRED_PERFUMES, OUTFIT_LAYERS, COLOR_PALETTE, defaultMaxReuses, canReuse, FABRIC_CARE, COMMON_DEFECTS, CARE_TIPS_LIBRARY, TRAVEL_CONTEXTS } from './constants';
+import type { Garment, AnalyzeResult, OutfitSuggestion, SuggestRequest, ShoppingTip, WornOutfitPiece, TravelSuggestRequest } from './types';
 
 let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
 
@@ -14,15 +14,15 @@ async function getZAI() {
   return zaiInstance;
 }
 
-// ---- VLM: analisar foto de peça de roupa ----
-export async function analyzeGarmentPhoto(imageBase64: string): Promise<AnalyzeResult> {
+// ---- VLM: analisar foto de peça de roupa (com defeitos, cuidados, verso opcional) ----
+export async function analyzeGarmentPhoto(imageBase64: string, backImageBase64?: string): Promise<AnalyzeResult> {
   const zai = await getZAI();
 
   const categoriesList = Object.entries(CATEGORIES)
     .map(([k, v]) => `${k} (${v.label})`)
     .join(', ');
 
-  const prompt = `Você é um especialista em moda e styling. Analise esta peça de roupa/acessório e retorne APENAS um JSON válido (sem markdown, sem texto extra) com esta estrutura exata:
+  const prompt = `Você é um especialista em moda e conservação de roupas. Analise esta peça de roupa/acessório${backImageBase64 ? ' (há também uma foto do verso)' : ''} e retorne APENAS um JSON válido (sem markdown, sem texto extra) com esta estrutura exata:
 {
   "name": "nome curto e descritivo em português, ex: 'Camiseta preta lisa de algodão'",
   "category": "uma destas categorias exatas: ${categoriesList}",
@@ -35,10 +35,104 @@ export async function analyzeGarmentPhoto(imageBase64: string): Promise<AnalyzeR
   "formality": "formalidade: casual, casual-chique, social, esporte, elegante",
   "gender": "genero: masculino, feminino, unissex",
   "brand": "marca se visível na imagem, ou null",
-  "description": "descrição curta (1 frase) da peça"
+  "description": "descrição curta (1 frase) da peça",
+  "defects": "descreva defeitos visíveis: buracos, manchas (cor e local), desfiados, botões faltando, pilling, desbotamento, elástico folgado, etc. Seja específico (ex: 'mancha amarelada perto da gola', 'buraco de 2mm na barra esquerda'). Se não houver defeitos, retorne string vazia.",
+  "careInstructions": "instruções de lavagem e cuidados específicas para esta peça (água fria/morna, passar ferro, secagem, alvejante, etc). Considere o tecido detectado.",
+  "usageRestrictions": "restrições de uso (ex: 'não usar em dias de chuva — solta tinta', 'evitar calor — encolhe', 'não usar com cinto de fivela metálica — risca'). Se nenhuma, string vazia.",
+  "careTips": "dicas práticas de salvar/conservar esta peça. Se houver defeito, sugira como consertar/remover (ex: 'mancha de gordura sai com detergente', 'manga deformada volta com vapor'). Se nenhuma dica relevante, string vazia."
 }
 
+Defeitos comuns a procurar: ${COMMON_DEFECTS.join(', ')}.
 Seja preciso com a categoria. Retorne SOMENTE o JSON.`;
+
+  const contentParts: Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }> = [
+    { type: 'text', text: prompt },
+    { type: 'image_url', image_url: { url: imageBase64 } },
+  ];
+  if (backImageBase64) {
+    contentParts.push({ type: 'text', text: 'Foto do verso:' });
+    contentParts.push({ type: 'image_url', image_url: { url: backImageBase64 } });
+  }
+
+  const response = await zai.chat.completions.createVision({
+    messages: [
+      { role: 'user', content: contentParts },
+    ],
+    thinking: { type: 'disabled' },
+  });
+
+  const content = response.choices[0]?.message?.content ?? '';
+
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('Não foi possível extrair JSON da análise: ' + content.slice(0, 200));
+  }
+
+  let parsed: AnalyzeResult;
+  try {
+    parsed = JSON.parse(jsonMatch[0]);
+  } catch {
+    throw new Error('JSON inválido da análise: ' + jsonMatch[0].slice(0, 200));
+  }
+
+  // Validar categoria; se não estiver na lista, tentar aproximar
+  if (!CATEGORIES[parsed.category]) {
+    const lower = (parsed.category ?? '').toLowerCase();
+    const found = Object.keys(CATEGORIES).find((k) => lower.includes(k) || k.includes(lower));
+    parsed.category = found ?? 'acessorio';
+  }
+
+  // Validar colorHex
+  if (!parsed.colorHex || !parsed.colorHex.startsWith('#')) {
+    const match = COLOR_PALETTE.find((c) => c.name === parsed.color?.toLowerCase());
+    parsed.colorHex = match?.hex ?? '#888888';
+  }
+
+  // Garantir defaults dos campos novos
+  parsed.defects = parsed.defects ?? '';
+  parsed.careInstructions = parsed.careInstructions ?? (parsed.fabric ? (FABRIC_CARE[parsed.fabric] ?? '') : '');
+  parsed.usageRestrictions = parsed.usageRestrictions ?? '';
+  parsed.careTips = parsed.careTips ?? '';
+
+  return parsed;
+}
+
+// ---- VLM: analisar foto de pessoa vestida e separar peças (lote) ----
+export async function analyzeWornOutfitPhoto(imageBase64: string): Promise<WornOutfitPiece[]> {
+  const zai = await getZAI();
+
+  const categoriesList = Object.entries(CATEGORIES)
+    .map(([k, v]) => `${k} (${v.label})`)
+    .join(', ');
+
+  const prompt = `Você é um especialista em moda. Veja esta foto de uma pessoa vestida. Identifique CADA peça de roupa/acessório visível que ela está usando e retorne APENAS um JSON válido (sem markdown) com esta estrutura:
+{
+  "pieces": [
+    {
+      "region": "região da foto onde a peça está, ex: 'tronco superior', 'pernas', 'pés', 'pulso esquerdo'",
+      "analysis": {
+        "name": "nome curto em português, ex: 'Camiseta branca lisa'",
+        "category": "uma destas: ${categoriesList}",
+        "subcategory": "subcategoria ou null",
+        "color": "cor em português",
+        "colorHex": "hex ou '#multicolor'",
+        "pattern": "liso, listrado, xadrez, estampado, quadriculado, floral",
+        "fabric": "algodao, poliester, jeans, linho, malha, la, couro, caneleiro",
+        "season": "verao, inverno, primavera, outono, todas",
+        "formality": "casual, casual-chique, social, esporte, elegante",
+        "gender": "masculino, feminino, unissex",
+        "brand": "marca se visível ou null",
+        "description": "descrição curta",
+        "defects": "defeitos visíveis ou string vazia",
+        "careInstructions": "instruções de lavagem",
+        "usageRestrictions": "restrições ou string vazia",
+        "careTips": "dicas de conservar ou string vazia"
+      }
+    }
+  ]
+}
+
+Identifique TODAS as peças visíveis: superior, inferior, íntimas se visíveis, calçado, casaco, acessórios (relógio, cinto, boné), etc. Não invente peças não visíveis. Retorne SOMENTE o JSON.`;
 
   const response = await zai.chat.completions.createVision({
     messages: [
@@ -54,34 +148,108 @@ Seja preciso com a categoria. Retorne SOMENTE o JSON.`;
   });
 
   const content = response.choices[0]?.message?.content ?? '';
-
-  // Extrair JSON mesmo se vier com markdown
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    throw new Error('Não foi possível extrair JSON da análise: ' + content.slice(0, 200));
+    throw new Error('Não foi possível extrair JSON da foto vestida: ' + content.slice(0, 200));
   }
 
-  let parsed: AnalyzeResult;
+  let parsed: { pieces: WornOutfitPiece[] };
   try {
     parsed = JSON.parse(jsonMatch[0]);
   } catch {
-    throw new Error('JSON inválido da análise: ' + jsonMatch[0].slice(0, 200));
+    throw new Error('JSON inválido da foto vestida: ' + jsonMatch[0].slice(0, 200));
   }
 
-  // Validar categoria; se não estiver na lista, tentar aproximar
-  if (!CATEGORIES[parsed.category]) {
-    const lower = parsed.category.toLowerCase();
-    const found = Object.keys(CATEGORIES).find((k) => lower.includes(k) || k.includes(lower));
-    parsed.category = found ?? 'acessorio';
+  // Validar cada peça
+  for (const p of parsed.pieces ?? []) {
+    if (!CATEGORIES[p.analysis.category]) {
+      const lower = (p.analysis.category ?? '').toLowerCase();
+      const found = Object.keys(CATEGORIES).find((k) => lower.includes(k) || k.includes(lower));
+      p.analysis.category = found ?? 'acessorio';
+    }
+    if (!p.analysis.colorHex || !p.analysis.colorHex.startsWith('#')) {
+      const m = COLOR_PALETTE.find((c) => c.name === p.analysis.color?.toLowerCase());
+      p.analysis.colorHex = m?.hex ?? '#888888';
+    }
+    p.analysis.defects = p.analysis.defects ?? '';
+    p.analysis.careInstructions = p.analysis.careInstructions ?? (p.analysis.fabric ? (FABRIC_CARE[p.analysis.fabric] ?? '') : '');
+    p.analysis.usageRestrictions = p.analysis.usageRestrictions ?? '';
+    p.analysis.careTips = p.analysis.careTips ?? '';
   }
 
-  // Validar colorHex
-  if (!parsed.colorHex || !parsed.colorHex.startsWith('#')) {
-    const match = COLOR_PALETTE.find((c) => c.name === parsed.color?.toLowerCase());
-    parsed.colorHex = match?.hex ?? '#888888';
+  return parsed.pieces ?? [];
+}
+
+// ---- LLM: sugerir conjunto para viagem ----
+export async function suggestTravelOutfit(
+  availableGarments: Garment[],
+  request: TravelSuggestRequest
+): Promise<{ garmentIds: string[]; reason: string }> {
+  const zai = await getZAI();
+
+  const compact = availableGarments.map((g) => ({
+    id: g.id,
+    n: g.name,
+    c: g.category,
+    co: g.color,
+    p: g.pattern,
+    f: g.formality,
+    s: g.season,
+    fa: g.fabric,
+    status: g.status,
+  }));
+
+  const days = request.startDate && request.endDate
+    ? Math.max(1, Math.ceil((new Date(request.endDate).getTime() - new Date(request.startDate).getTime()) / (1000 * 60 * 60 * 24)))
+    : 1;
+
+  const ctxMeta = request.context ? (TRAVEL_CONTEXTS[request.context] ?? { label: request.context, hint: '' }) : null;
+
+  const prompt = `Você é um consultor de viagens e moda. Monte um conjunto de roupas para levar nesta viagem.
+
+DETALHES DA VIAGEM:
+- Destino: ${request.destination}
+- Datas: ${request.startDate} a ${request.endDate} (${days} dias)
+- Clima previsto: ${request.weather || 'não informado'}
+- Meio de transporte: ${request.transport || 'não informado'}
+- Contexto: ${ctxMeta ? ctxMeta.label + ' — ' + ctxMeta.hint : request.context || 'geral'}
+- Observações: ${request.notes || 'nenhuma'}
+
+PEÇAS DISPONÍVEIS no guarda-roupa (use apenas estas):
+${JSON.stringify(compact, null, 2)}
+
+REGRAS:
+1. Monte um CONJUNTO para ${days} dia(s) de viagem. Para viagens longas, sugira peças suficientes para os dias (íntimas suficientes, trocas de camisetas, etc).
+2. Considere o clima, o contexto (praia/chácara/trabalho/etc) e o transporte.
+3. Priorize peças que combinam entre si e que permitem reuso inteligente (calças/casacos podem reusar; íntimas não).
+4. Não inclua peças reservadas ou com defeitos relevantes se possível.
+5. Para viagens longe de casa, considere que vai precisar trocar de roupa — leve variedade.
+
+Retorne APENAS JSON (sem markdown):
+{
+  "garmentIds": ["id1", "id2", ...],
+  "reason": "explicação em português do porquê desta seleção para esta viagem, considerando clima, contexto e dias"
+}`;
+
+  const completion = await zai.chat.completions.create({
+    messages: [
+      { role: 'assistant', content: 'Você é um consultor de viagens e estilo. Responda apenas com JSON válido.' },
+      { role: 'user', content: prompt },
+    ],
+    thinking: { type: 'disabled' },
+  });
+
+  const content = completion.choices[0]?.message?.content ?? '';
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('IA não retornou JSON de viagem: ' + content.slice(0, 200));
   }
 
-  return parsed;
+  try {
+    return JSON.parse(jsonMatch[0]);
+  } catch {
+    throw new Error('JSON inválido de viagem: ' + jsonMatch[0].slice(0, 200));
+  }
 }
 
 // ---- LLM: gerar 3 sugestões de combinação ----

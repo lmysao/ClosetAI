@@ -8,13 +8,16 @@ import { Outfits } from '@/components/sections/outfits';
 import { Laundry } from '@/components/sections/laundry';
 import { Shopping } from '@/components/sections/shopping';
 import { Stats } from '@/components/sections/stats';
+import { Reserve } from '@/components/sections/reserve';
+import { Travel } from '@/components/sections/travel';
 import { AddGarmentDialog } from '@/components/add-garment-dialog';
+import { BatchAddDialog } from '@/components/batch-add-dialog';
 import { Button } from '@/components/ui/button';
 import { useTheme } from 'next-themes';
-import { useStats } from '@/lib/hooks';
+import { useStats, useReservedSets } from '@/lib/hooks';
 import {
   LayoutDashboard, Shirt, Wand2, ShowerHead, ShoppingBag, BarChart3,
-  Plus, Sun, Moon, Heart,
+  Plus, Sun, Moon, Heart, Layers, Plane, Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -23,6 +26,8 @@ const NAV: Array<{ id: Section; label: string; icon: React.ComponentType<{ class
   { id: 'wardrobe', label: 'Guarda-Roupa', icon: Shirt, emoji: '👔' },
   { id: 'outfits', label: 'Combinar', icon: Wand2, emoji: '✨' },
   { id: 'laundry', label: 'Lavanderia', icon: ShowerHead, emoji: '🧺' },
+  { id: 'reserve', label: 'Reservas', icon: Layers, emoji: '📌' },
+  { id: 'travel', label: 'Viagens', icon: Plane, emoji: '🧳' },
   { id: 'shopping', label: 'Compras', icon: ShoppingBag, emoji: '🛍️' },
   { id: 'stats', label: 'Stats', icon: BarChart3, emoji: '📊' },
 ];
@@ -31,9 +36,11 @@ export default function Home() {
   const section = useUIStore((s) => s.section);
   const setSection = useUIStore((s) => s.setSection);
   const [addOpen, setAddOpen] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const { data: statsData } = useStats();
+  const { data: reservedData } = useReservedSets();
 
   // next-themes precisa saber quando montou pra evitar mismatch de hidratação
   useEffect(() => {
@@ -43,6 +50,8 @@ export default function Home() {
 
   // badge de alerta na lavanderia
   const laundryBadge = statsData?.stats?.laundryAlert ? statsData.stats.suja : 0;
+  // badge de reservas ativas
+  const reserveBadge = (reservedData?.reserved ?? []).filter((r) => r.status === 'reservado').length;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -82,6 +91,11 @@ export default function Home() {
                       {laundryBadge}
                     </span>
                   )}
+                  {item.id === 'reserve' && reserveBadge > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
+                      {reserveBadge}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -96,6 +110,10 @@ export default function Home() {
               title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
             >
               {mounted && theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setBatchOpen(true)} className="h-9 hidden sm:inline-flex" title="Adicionar várias peças de uma vez">
+              <Layers className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden md:inline">Em lote</span>
             </Button>
             <Button size="sm" onClick={() => setAddOpen(true)} className="h-9">
               <Plus className="h-4 w-4 sm:mr-1.5" />
@@ -153,6 +171,8 @@ export default function Home() {
           {section === 'wardrobe' && <Wardrobe />}
           {section === 'outfits' && <Outfits />}
           {section === 'laundry' && <Laundry />}
+          {section === 'reserve' && <Reserve />}
+          {section === 'travel' && <Travel />}
           {section === 'shopping' && <Shopping />}
           {section === 'stats' && <Stats />}
         </main>
@@ -160,7 +180,7 @@ export default function Home() {
 
       {/* Bottom nav (mobile) */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pb-[env(safe-area-inset-bottom)]">
-        <div className="grid grid-cols-6 h-16">
+        <div className="grid grid-cols-8 h-16">
           {NAV.map((item) => {
             const Icon = item.icon;
             const active = section === item.id;
@@ -178,6 +198,11 @@ export default function Home() {
                   {item.id === 'laundry' && laundryBadge > 0 && (
                     <span className="absolute -top-1.5 -right-2 bg-rose-500 text-white text-[8px] font-bold rounded-full min-w-[14px] h-3.5 px-0.5 flex items-center justify-center">
                       {laundryBadge}
+                    </span>
+                  )}
+                  {item.id === 'reserve' && reserveBadge > 0 && (
+                    <span className="absolute -top-1.5 -right-2 bg-primary text-primary-foreground text-[8px] font-bold rounded-full min-w-[14px] h-3.5 px-0.5 flex items-center justify-center">
+                      {reserveBadge}
                     </span>
                   )}
                 </div>
@@ -204,6 +229,7 @@ export default function Home() {
       </footer>
 
       <AddGarmentDialog open={addOpen} onOpenChange={setAddOpen} />
+      <BatchAddDialog open={batchOpen} onOpenChange={setBatchOpen} />
     </div>
   );
 }

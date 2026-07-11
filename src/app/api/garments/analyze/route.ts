@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { analyzeGarmentPhoto } from '@/lib/ai';
 
 // POST /api/garments/analyze — analisa foto de peça com VLM (Vision Language Model)
-// Body: { imageData: "data:image/jpeg;base64,..." }
+// Body: { imageData: "data:image/jpeg;base64,...", backImage?: "data:image/..." }
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { imageData } = body as { imageData?: string };
+    const { imageData, backImage } = body as { imageData?: string; backImage?: string };
 
     if (!imageData || !imageData.startsWith('data:image')) {
       return NextResponse.json(
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const analysis = await analyzeGarmentPhoto(imageData);
+    const analysis = await analyzeGarmentPhoto(imageData, backImage);
     return NextResponse.json({ analysis });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erro desconhecido';

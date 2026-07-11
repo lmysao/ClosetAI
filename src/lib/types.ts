@@ -20,9 +20,14 @@ export interface Garment {
   reuseCount: number;
   lastWornAt: string | null;
   imageData: string;
+  backImage: string | null;
   brand: string | null;
   notes: string | null;
   favorite: boolean;
+  careInstructions: string | null;
+  usageRestrictions: string | null;
+  defects: string | null;
+  careTips: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -66,6 +71,21 @@ export interface AnalyzeResult {
   gender: string;
   brand: string | null;
   description: string;
+  /// defeitos detectados pela IA (texto livre) ou string vazia
+  defects: string;
+  /// instruções de lavagem sugeridas
+  careInstructions: string;
+  /// restrições de uso
+  usageRestrictions: string;
+  /// dicas de salvar/conservar a peça
+  careTips: string;
+}
+
+/// Resultado da análise de foto de pessoa vestida (lote)
+export interface WornOutfitPiece {
+  analysis: AnalyzeResult;
+  /// recorte sugerido (descrição da região da foto)
+  region: string;
 }
 
 export interface ShoppingTip {
@@ -92,4 +112,54 @@ export interface Stats {
   missingEssentials: string[];
   rotationScore: number;
   laundryAlert: boolean;
+}
+
+/// Conjunto reservado para evento futuro
+export interface ReservedSet {
+  id: string;
+  name: string;
+  eventType: string;
+  eventDate: string;
+  eventTime: string | null;
+  conditions: string | null;
+  garmentIds: string[];
+  reason: string | null;
+  status: 'reservado' | 'usado' | 'cancelado';
+  createdAt: string;
+}
+
+/// Plano de viagem
+export interface TravelPlan {
+  id: string;
+  destination: string;
+  startDate: string;
+  endDate: string;
+  weather: string | null;
+  transport: string | null;
+  context: string | null;
+  duration: number | null;
+  garmentIds: string[];
+  reason: string | null;
+  notes: string | null;
+  status: 'planejada' | 'em-viagem' | 'concluida';
+  createdAt: string;
+}
+
+/// Foto de modelo para visualização
+export interface ModelPhoto {
+  id: string;
+  label: string | null;
+  imageData: string;
+  createdAt: string;
+}
+
+/// Pedido de sugestão de viagem
+export interface TravelSuggestRequest {
+  destination: string;
+  startDate: string;
+  endDate: string;
+  weather?: string;
+  transport?: string;
+  context?: string;
+  notes?: string;
 }

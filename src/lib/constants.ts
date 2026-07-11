@@ -185,3 +185,71 @@ export function defaultMaxReuses(category: string): number {
 export function canReuse(category: string): boolean {
   return !NEVER_REUSE_CATEGORIES.includes(category);
 }
+
+// === Cuidados e defeitos ===
+
+// Instruções de lavagem padrão por tecido (sugestões que a IA pode usar)
+export const FABRIC_CARE: Record<string, string> = {
+  algodao: 'Lavar à máquina em água fria/morna. Não usar alvejante clorado. Secar na sombra. Passar a ferro médio.',
+  poliester: 'Lavar à máquina em água fria. Não usar amaciante em excesso. Secar na sombra. Não passa a ferro alto.',
+  jeans: 'Lavar pelo avesso em água fria. Não lavar com frequência (a cada 5-6 usos). Secar na sombra. Não torcer.',
+  linho: 'Lavar à mão ou ciclo delicado em água fria. Secar na horizontal. Passar a ferro com vapor enquanto úmido.',
+  malha: 'Lavar à mão em água fria. Não torcer. Secar na horizontal. Não passar a ferro.',
+  la: 'Lavar a seco ou ciclo lã em água fria. Não torcer. Secar na horizontal sobre toalha.',
+  couro: 'Não lavar com água. Limpar com pano úmido. Hidratar com cremes para couro. Longe de calor.',
+  caneleiro: 'Limpar com pano úmido e sabão neutro. Secar à sombra. Não usar alvejante.',
+};
+
+// Defeitos comuns que a IA deve procurar
+export const COMMON_DEFECTS = [
+  'buraco próximo à gola',
+  'buraco na barra',
+  'mancha vermelha',
+  'mancha amarelada',
+  'mancha de gordura',
+  'desbotada irregular',
+  'costura desfiada',
+  'botão faltando',
+  'elástico folgado',
+  'pilling (bolinhas)',
+  'mancha de mofo',
+  'desgaste nas axilas',
+];
+
+// Dicas de salvar/conservar peças (a IA pode sugerir)
+export const CARE_TIPS_LIBRARY = [
+  'Mancha de gordura: aplique detergente de louça e deixe 15min antes de lavar.',
+  'Mancha amarelada: deixe de molho em água com bicarbonato e limão antes de lavar.',
+  'Camisa/camiseta esbranquiçada: adicione 1/2 xícara de vinagre branco na lavagem para reviver a cor.',
+  'Manga bufante/deformada: use vapor de ferro ou chuveiro quente para devolver o formato.',
+  'Pilling (bolinhas): use aparador de pilhas ou barbeador cuidadosamente.',
+  'Jeans desbotado: lave pelo avesso com sal grosso na primeira lavagem para fixar a cor.',
+  'Mofo: deixe de molho em água com vinagre e depois seque ao sol.',
+  'Costura desfiada: costure à mão com linha similar antes de lavar para não abrir mais.',
+  'Elástico folgado: passe água quente sobre o elástico para encolher, ou troque.',
+  'Botão faltando: substitua por botão similar — guarde botões extras.',
+];
+
+// === Viagens / longe de casa ===
+
+export const TRAVEL_CONTEXTS: Record<string, { label: string; emoji: string; hint: string }> = {
+  chacara: { label: 'Chácara / Campo', emoji: '🌿', hint: 'Roupas leves e confortáveis, roupa de piscina' },
+  piscina: { label: 'Casa com piscina', emoji: '🏊', hint: 'Sunga/calcão, chinelos, protetor solar' },
+  praia: { label: 'Praia', emoji: '🏖️', hint: 'Sunga, chinelos, camisas leves UV' },
+  trabalho: { label: 'Viagem a trabalho', emoji: '💼', hint: 'Roupas sociais e uma casual' },
+  familia: { label: 'Visita à família', emoji: '👨‍👩‍👧', hint: 'Casual arrumado, confortável' },
+  cidade: { label: 'Turismo urbano', emoji: '🏙️', hint: 'Tênis confortável, casaco, mistura casual/chique' },
+  festa: { label: 'Festa / Evento', emoji: '🎉', hint: 'Roupas sociais/elegantes' },
+  academia: { label: 'Retiro / Academia', emoji: '🏋️', hint: 'Roupas de treino, regatas, shorts' },
+  montanha: { label: 'Montanha / Frio', emoji: '🏔️', hint: 'Casacos, blusas, calças quentes' },
+  camping: { label: 'Camping', emoji: '⛺', hint: 'Roupas resistentes, casacos, replicação' },
+};
+
+export const TRANSPORT_TYPES: Record<string, { label: string; emoji: string }> = {
+  aviao: { label: 'Avião', emoji: '✈️' },
+  carro: { label: 'Carro', emoji: '🚗' },
+  onibus: { label: 'Ônibus', emoji: '🚌' },
+  moto: { label: 'Moto', emoji: '🏍️' },
+  barco: { label: 'Barco', emoji: '⛵' },
+  trem: { label: 'Trem', emoji: '🚆' },
+};

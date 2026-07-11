@@ -30,6 +30,7 @@ import type { AnalyzeResult } from '@/lib/types';
 import { toast } from 'sonner';
 import {
   Camera, Upload, Sparkles, Loader2, X, Check, RefreshCw, Wand2,
+  AlertTriangle, ImagePlus,
 } from 'lucide-react';
 
 export function AddGarmentDialog({
@@ -42,9 +43,11 @@ export function AddGarmentDialog({
   defaultCategory?: string;
 }) {
   const [imageData, setImageData] = useState<string | null>(null);
-  const [analysis, setAnalysis] = useState<AnalyseResult | null>(null);
+  const [backImageData, setBackImageData] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<AnalyzeResult | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingBack, setUploadingBack] = useState(false);
 
   // Campos editáveis (preenchidos pela IA, ajustáveis pelo usuário)
   const [name, setName] = useState('');
@@ -60,14 +63,23 @@ export function AddGarmentDialog({
   const [brand, setBrand] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Cuidados & defeitos
+  const [defects, setDefects] = useState('');
+  const [careInstructions, setCareInstructions] = useState('');
+  const [usageRestrictions, setUsageRestrictions] = useState('');
+  const [careTips, setCareTips] = useState('');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const backFileInputRef = useRef<HTMLInputElement>(null);
+  const backCameraInputRef = useRef<HTMLInputElement>(null);
 
   const analyzeMut = useAnalyzeGarment();
   const createMut = useCreateGarment();
 
   const reset = () => {
     setImageData(null);
+    setBackImageData(null);
     setAnalysis(null);
     setName('');
     setCategory(defaultCategory ?? 'camiseta');
@@ -81,6 +93,29 @@ export function AddGarmentDialog({
     setGender('masculino');
     setBrand('');
     setNotes('');
+    setDefects('');
+    setCareInstructions('');
+    setUsageRestrictions('');
+    setCareTips('');
+  };
+
+  const applyAnalysis = (a: AnalyseResult) => {
+    setAnalysis(a);
+    setName(a.name);
+    setCategory(a.category);
+    setSubcategory(a.subcategory ?? '');
+    setColor(a.color ?? '');
+    setColorHex(a.colorHex ?? '#888888');
+    setPattern(a.pattern ?? 'liso');
+    setFabric(a.fabric ?? 'algodao');
+    setSeason(a.season ?? 'todas');
+    setFormality(a.formality ?? 'casual');
+    setGender(a.gender ?? 'masculino');
+    setBrand(a.brand ?? '');
+    setDefects(a.defects ?? '');
+    setCareInstructions(a.careInstructions ?? '');
+    setUsageRestrictions(a.usageRestrictions ?? '');
+    setCareTips(a.careTips ?? '');
   };
 
   const handleFile = useCallback(async (file: File) => {
@@ -89,35 +124,37 @@ export function AddGarmentDialog({
       const resized = await resizeImage(file, 800, 0.82);
       setImageData(resized);
       setAnalysis(null);
-      // auto-analisar
+      // auto-analisar com frente (e verso se já houver)
       setAnalyzing(true);
-      analyzeMut.mutate(resized, {
-        onSuccess: (data) => {
-          const a = data.analysis;
-          setAnalysis(a);
-          setName(a.name);
-          setCategory(a.category);
-          setSubcategory(a.subcategory ?? '');
-          setColor(a.color ?? '');
-          setColorHex(a.colorHex ?? '#888888');
-          setPattern(a.pattern ?? 'liso');
-          setFabric(a.fabric ?? 'algodao');
-          setSeason(a.season ?? 'todas');
-          setFormality(a.formality ?? 'casual');
-          setGender(a.gender ?? 'masculino');
-          setBrand(a.brand ?? '');
-        },
-        onError: (e) => {
-          toast.error('Não consegui analisar a foto: ' + e.message);
-        },
-        onSettled: () => setAnalyzing(false),
-      });
+      analyzeMut.mutate(
+        { imageData: resized, backImage: backImageData || undefined },
+        {
+          onSuccess: (data) => applyAnalysis(data.analysis),
+          onError: (e) => {
+            toast.error('Não consegui analisar a foto: ' + e.message);
+          },
+          onSettled: () => setAnalyzing(false),
+        }
+      );
     } catch (e) {
       toast.error('Erro ao processar imagem: ' + (e instanceof Error ? e.message : ''));
     } finally {
       setUploading(false);
     }
-  }, [analyzeMut]);
+  }, [analyzeMut, backImageData]);
+
+  const handleBackFile = useCallback(async (file: File) => {
+    setUploadingBack(true);
+    try {
+      const resized = await resizeImage(file, 800, 0.82);
+      setBackImageData(resized);
+      toast.success('Foto do verso adicionada');
+    } catch (e) {
+      toast.error('Erro ao processar imagem do verso: ' + (e instanceof Error ? e.message : ''));
+    } finally {
+      setUploadingBack(false);
+    }
+  }, []);
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -125,28 +162,23 @@ export function AddGarmentDialog({
     e.target.value = '';
   };
 
+  const onBackFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleBackFile(file);
+    e.target.value = '';
+  };
+
   const reanalyze = () => {
     if (!imageData) return;
     setAnalyzing(true);
-    analyzeMut.mutate(imageData, {
-      onSuccess: (data) => {
-        const a = data.analysis;
-        setAnalysis(a);
-        setName(a.name);
-        setCategory(a.category);
-        setSubcategory(a.subcategory ?? '');
-        setColor(a.color ?? '');
-        setColorHex(a.colorHex ?? '#888888');
-        setPattern(a.pattern ?? 'liso');
-        setFabric(a.fabric ?? 'algodao');
-        setSeason(a.season ?? 'todas');
-        setFormality(a.formality ?? 'casual');
-        setGender(a.gender ?? 'masculino');
-        setBrand(a.brand ?? '');
-      },
-      onError: (e) => toast.error('Erro: ' + e.message),
-      onSettled: () => setAnalyzing(false),
-    });
+    analyzeMut.mutate(
+      { imageData, backImage: backImageData || undefined },
+      {
+        onSuccess: (data) => applyAnalysis(data.analysis),
+        onError: (e) => toast.error('Erro: ' + e.message),
+        onSettled: () => setAnalyzing(false),
+      }
+    );
   };
 
   const handleSave = () => {
@@ -173,6 +205,11 @@ export function AddGarmentDialog({
         brand: brand.trim() || null,
         notes: notes.trim() || null,
         imageData,
+        backImage: backImageData || null,
+        defects: defects.trim() || null,
+        careInstructions: careInstructions.trim() || null,
+        usageRestrictions: usageRestrictions.trim() || null,
+        careTips: careTips.trim() || null,
       },
       {
         onSuccess: () => {
@@ -202,6 +239,14 @@ export function AddGarmentDialog({
             Tire uma foto ou escolha da galeria. A IA analisa cor, tecido, estilo e sugere tudo automaticamente.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Aviso de defeito */}
+        {defects.trim() !== '' && (
+          <div className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 px-3 py-2 text-amber-700 dark:text-amber-300">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span className="text-xs font-medium">⚠️ com defeito — revise os cuidados antes de salvar</span>
+          </div>
+        )}
 
         {/* Upload / Preview */}
         {!imageData ? (
@@ -251,6 +296,9 @@ export function AddGarmentDialog({
               >
                 <X className="h-4 w-4" />
               </button>
+              <span className="absolute top-2 left-2 rounded-full bg-background/90 backdrop-blur px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shadow">
+                Frente
+              </span>
               {analyzing && (
                 <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-2">
                   <Loader2 className="h-8 w-8 animate-spin" />
@@ -269,10 +317,70 @@ export function AddGarmentDialog({
               )}
             </div>
 
+            {/* Foto do verso (opcional) */}
+            {backImageData ? (
+              <div className="flex items-center gap-3 rounded-lg border border-muted-foreground/20 bg-muted/40 p-2">
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md bg-muted">
+                  <img src={backImageData} alt="Verso" className="h-full w-full object-cover" />
+                  <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] font-semibold uppercase tracking-wide py-0.5 text-center">
+                    Verso
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-muted-foreground">Foto do verso adicionada</p>
+                  <p className="text-[11px] text-muted-foreground/80">A IA usa essa foto pra detectar defeitos e etiqueta de lavagem.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBackImageData(null)}
+                  className="rounded-full bg-background/90 p-1.5 shadow hover:bg-background text-rose-600"
+                  aria-label="Remover foto do verso"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => backCameraInputRef.current?.click()}
+                  disabled={uploadingBack || analyzing}
+                >
+                  {uploadingBack ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Camera className="h-3.5 w-3.5 mr-1.5" />}
+                  Foto do verso
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => backFileInputRef.current?.click()}
+                  disabled={uploadingBack || analyzing}
+                >
+                  <ImagePlus className="h-3.5 w-3.5 mr-1.5" />
+                  Da galeria (opcional)
+                </Button>
+                <input
+                  ref={backCameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={onBackFileChange}
+                />
+                <input
+                  ref={backFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={onBackFileChange}
+                />
+              </div>
+            )}
+
             {!analyzing && (
               <Button variant="outline" size="sm" onClick={reanalyze} className="w-full">
                 <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                Reanalisar com IA
+                Reanalisar com IA {backImageData ? '(frente + verso)' : ''}
               </Button>
             )}
 
@@ -397,6 +505,65 @@ export function AddGarmentDialog({
               <div>
                 <Label htmlFor="notes">Notas (opcional)</Label>
                 <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ex: presente da namorada, usar só em ocasiões especiais" rows={2} />
+              </div>
+
+              {/* Cuidados & defeitos */}
+              <div className="space-y-2.5 rounded-lg border border-muted-foreground/20 bg-muted/30 p-3">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <h4 className="text-sm font-semibold">Cuidados & defeitos</h4>
+                </div>
+
+                <div>
+                  <Label htmlFor="defects" className="flex items-center gap-1.5 text-xs">
+                    <AlertTriangle className="h-3 w-3 text-amber-600" />
+                    Defeitos encontrados
+                  </Label>
+                  <Textarea
+                    id="defects"
+                    value={defects}
+                    onChange={(e) => setDefects(e.target.value)}
+                    placeholder="ex: mancha amarelada perto da gola"
+                    rows={2}
+                    className="mt-1 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="careInstructions" className="text-xs">Instruções de lavagem</Label>
+                  <Textarea
+                    id="careInstructions"
+                    value={careInstructions}
+                    onChange={(e) => setCareInstructions(e.target.value)}
+                    placeholder="ex: lavar à mão em água fria, não usar alvejante"
+                    rows={2}
+                    className="mt-1 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="usageRestrictions" className="text-xs">Restrições de uso</Label>
+                  <Textarea
+                    id="usageRestrictions"
+                    value={usageRestrictions}
+                    onChange={(e) => setUsageRestrictions(e.target.value)}
+                    placeholder="ex: não usar em dias de chuva"
+                    rows={2}
+                    className="mt-1 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="careTips" className="text-xs">Dicas de conservar</Label>
+                  <Textarea
+                    id="careTips"
+                    value={careTips}
+                    onChange={(e) => setCareTips(e.target.value)}
+                    placeholder="ex: mancha de gordura sai com detergente"
+                    rows={2}
+                    className="mt-1 text-sm"
+                  />
+                </div>
               </div>
 
               {/* Info de reuso */}

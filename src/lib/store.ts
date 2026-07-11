@@ -3,7 +3,7 @@
 // Store Zustand para estado de UI (aba ativa, filtros, modal de detalhe)
 import { create } from 'zustand';
 
-export type Section = 'dashboard' | 'wardrobe' | 'outfits' | 'laundry' | 'shopping' | 'stats';
+export type Section = 'dashboard' | 'wardrobe' | 'outfits' | 'laundry' | 'shopping' | 'stats' | 'reserve' | 'travel';
 
 interface UIState {
   section: Section;

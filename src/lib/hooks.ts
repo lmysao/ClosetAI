@@ -85,8 +85,25 @@ export function useDeleteGarment() {
 
 export function useAnalyzeGarment() {
   return useMutation({
-    mutationFn: async (imageData: string) => {
+    mutationFn: async (params: { imageData: string; backImage?: string }) => {
       const r = await fetch('/api/garments/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        throw new Error(e.error || 'Erro na análise');
+      }
+      return r.json() as Promise<{ analysis: import('@/lib/types').AnalyzeResult }>;
+    },
+  });
+}
+
+export function useAnalyzeWornOutfit() {
+  return useMutation({
+    mutationFn: async (imageData: string) => {
+      const r = await fetch('/api/garments/analyze-worn', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageData }),
@@ -95,7 +112,7 @@ export function useAnalyzeGarment() {
         const e = await r.json().catch(() => ({}));
         throw new Error(e.error || 'Erro na análise');
       }
-      return r.json() as Promise<{ analysis: import('@/lib/types').AnalyzeResult }>;
+      return r.json() as Promise<{ pieces: import('@/lib/types').WornOutfitPiece[] }>;
     },
   });
 }
@@ -247,5 +264,184 @@ export function useStats() {
     queryKey: ['stats'],
     queryFn: () => fetch('/api/stats').then((r) => r.json()),
     refetchInterval: 60 * 1000,
+  });
+}
+
+// ----- Reserved sets -----
+export function useReservedSets() {
+  return useQuery({
+    queryKey: ['reserved'],
+    queryFn: () => fetch('/api/reserved').then((r) => r.json()),
+  });
+}
+
+export function useCreateReserved() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: {
+      name: string; eventType?: string; eventDate: string; eventTime?: string;
+      conditions?: string; garmentIds: string[]; reason?: string;
+    }) => {
+      const r = await fetch('/api/reserved', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Erro'); }
+      return r.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['reserved'] }),
+  });
+}
+
+export function useUpdateReserved() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
+      const r = await fetch(`/api/reserved/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!r.ok) throw new Error('Erro');
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reserved'] });
+      qc.invalidateQueries({ queryKey: ['garments'] });
+      qc.invalidateQueries({ queryKey: ['stats'] });
+    },
+  });
+}
+
+export function useDeleteReserved() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`/api/reserved/${id}`, { method: 'DELETE' });
+      if (!r.ok) throw new Error('Erro');
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reserved'] });
+      qc.invalidateQueries({ queryKey: ['garments'] });
+    },
+  });
+}
+
+// ----- Travel -----
+export function useTravelPlans() {
+  return useQuery({
+    queryKey: ['travel'],
+    queryFn: () => fetch('/api/travel').then((r) => r.json()),
+  });
+}
+
+export function useSuggestTravel() {
+  return useMutation({
+    mutationFn: async (req: import('@/lib/types').TravelSuggestRequest) => {
+      const r = await fetch('/api/travel/suggest', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Erro');
+      return data as { garmentIds: string[]; reason: string };
+    },
+  });
+}
+
+export function useCreateTravel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: {
+      destination: string; startDate: string; endDate: string; weather?: string;
+      transport?: string; context?: string; notes?: string; garmentIds?: string[]; reason?: string;
+    }) => {
+      const r = await fetch('/api/travel', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Erro'); }
+      return r.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['travel'] }),
+  });
+}
+
+export function useUpdateTravel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
+      const r = await fetch(`/api/travel/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!r.ok) throw new Error('Erro');
+      return r.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['travel'] }),
+  });
+}
+
+export function useDeleteTravel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`/api/travel/${id}`, { method: 'DELETE' });
+      if (!r.ok) throw new Error('Erro');
+      return r.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['travel'] }),
+  });
+}
+
+// ----- Model photos -----
+export function useModelPhotos() {
+  return useQuery({
+    queryKey: ['model-photos'],
+    queryFn: () => fetch('/api/model-photos').then((r) => r.json()),
+  });
+}
+
+export function useAddModelPhoto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { imageData: string; label?: string }) => {
+      const r = await fetch('/api/model-photos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Erro'); }
+      return r.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['model-photos'] }),
+  });
+}
+
+export function useDeleteModelPhoto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const r = await fetch(`/api/model-photos/${id}`, { method: 'DELETE' });
+      if (!r.ok) throw new Error('Erro');
+      return r.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['model-photos'] }),
+  });
+}
+
+// ----- Visualize (gera prompt + lista peças) -----
+export function useGenerateVisualization() {
+  return useMutation({
+    mutationFn: async (garmentIds: string[]) => {
+      const r = await fetch('/api/visualize', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ garmentIds }),
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Erro'); }
+      return r.json() as Promise<{
+        prompt: string;
+        garments: Array<{ id: string; name: string; category: string; color: string | null; colorHex: string | null; imageData: string; backImage: string | null }>;
+      }>;
+    },
   });
 }

@@ -11,12 +11,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { CATEGORIES, STATUS_LABELS, FORMALITIES, SEASONS, defaultMaxReuses } from '@/lib/constants';
 import type { Garment } from '@/lib/types';
 import { useDeleteGarment, useUpdateGarment, useWashGarments } from '@/lib/hooks';
 import { toast } from 'sonner';
 import {
   Trash2, Heart, Droplets, RefreshCw, Shirt, Calendar, Tag, Palette, Sparkles,
+  Pencil, Save, X, AlertTriangle,
 } from 'lucide-react';
 import { useState } from 'react';
 import {
@@ -43,6 +46,13 @@ export function GarmentDetailSheet({
   const deleteMut = useDeleteGarment();
   const washMut = useWashGarments();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editCare, setEditCare] = useState(false);
+
+  // Campos editáveis do modo "Editar cuidados"
+  const [editDefects, setEditDefects] = useState('');
+  const [editCareInstructions, setEditCareInstructions] = useState('');
+  const [editUsageRestrictions, setEditUsageRestrictions] = useState('');
+  const [editCareTips, setEditCareTips] = useState('');
 
   if (!garment) return null;
 
@@ -50,6 +60,12 @@ export function GarmentDetailSheet({
   const status = STATUS_LABELS[garment.status as keyof typeof STATUS_LABELS] ?? STATUS_LABELS.disponivel;
   const formality = FORMALITIES[garment.formality as keyof typeof FORMALITIES];
   const season = SEASONS[garment.season as keyof typeof SEASONS] ?? SEASONS.todas;
+
+  const hasDefects = (garment.defects ?? '').trim() !== '';
+  const hasCare = (garment.careInstructions ?? '').trim() !== '';
+  const hasRestrictions = (garment.usageRestrictions ?? '').trim() !== '';
+  const hasTips = (garment.careTips ?? '').trim() !== '';
+  const hasAnyCare = hasDefects || hasCare || hasRestrictions || hasTips || !!garment.backImage;
 
   const toggleFavorite = () => {
     updateMut.mutate({ id: garment.id, data: { favorite: !garment.favorite } });
@@ -82,6 +98,39 @@ export function GarmentDetailSheet({
     });
   };
 
+  const enterEditMode = () => {
+    setEditDefects(garment.defects ?? '');
+    setEditCareInstructions(garment.careInstructions ?? '');
+    setEditUsageRestrictions(garment.usageRestrictions ?? '');
+    setEditCareTips(garment.careTips ?? '');
+    setEditCare(true);
+  };
+
+  const cancelEdit = () => {
+    setEditCare(false);
+  };
+
+  const saveEdit = () => {
+    updateMut.mutate(
+      {
+        id: garment.id,
+        data: {
+          defects: editDefects.trim() || null,
+          careInstructions: editCareInstructions.trim() || null,
+          usageRestrictions: editUsageRestrictions.trim() || null,
+          careTips: editCareTips.trim() || null,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success('Cuidados atualizados');
+          setEditCare(false);
+        },
+        onError: (e) => toast.error('Erro ao salvar: ' + e.message),
+      }
+    );
+  };
+
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
@@ -98,13 +147,29 @@ export function GarmentDetailSheet({
           </SheetHeader>
 
           <div className="mt-4">
-            <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-muted">
-              <img src={garment.imageData} alt={garment.name} className="w-full h-full object-cover" />
-              <div className="absolute top-3 right-3">
-                <span className="inline-flex items-center gap-1 rounded-full bg-background/90 backdrop-blur px-3 py-1 text-xs font-semibold shadow">
-                  {status.emoji} {status.label}
+            <div className="flex gap-3">
+              <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-muted flex-1">
+                <img src={garment.imageData} alt={garment.name} className="w-full h-full object-cover" />
+                <div className="absolute top-3 right-3">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-background/90 backdrop-blur px-3 py-1 text-xs font-semibold shadow">
+                    {status.emoji} {status.label}
+                  </span>
+                </div>
+                <span className="absolute top-3 left-3 rounded-full bg-background/90 backdrop-blur px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shadow">
+                  Frente
                 </span>
               </div>
+              {garment.backImage ? (
+                <div className="relative aspect-square w-28 shrink-0 rounded-xl overflow-hidden bg-muted">
+                  <img src={garment.backImage} alt={`${garment.name} — verso`} className="w-full h-full object-cover" />
+                  <span className="absolute top-2 left-2 rounded-full bg-background/90 backdrop-blur px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shadow">
+                    Verso
+                  </span>
+                  <Badge variant="secondary" className="absolute bottom-2 left-2 right-2 justify-center font-normal text-[10px]">
+                    📷 foto do verso
+                  </Badge>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -153,6 +218,131 @@ export function GarmentDetailSheet({
             <AttrRow icon={<Calendar className="h-4 w-4" />} label="Estação">
               <span className="text-sm">{season.emoji} {season.label}</span>
             </AttrRow>
+          </div>
+
+          {/* Cuidados & defeitos */}
+          <div className="mt-4">
+            <Separator className="my-3" />
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="flex items-center gap-1.5 text-sm font-semibold">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                Cuidados & defeitos
+              </h4>
+              {editCare ? (
+                <div className="flex items-center gap-1">
+                  <Button size="sm" variant="ghost" onClick={cancelEdit} className="h-7 px-2 text-xs">
+                    <X className="h-3 w-3 mr-1" /> Cancelar
+                  </Button>
+                  <Button size="sm" onClick={saveEdit} disabled={updateMut.isPending} className="h-7 px-2 text-xs">
+                    {updateMut.isPending ? <RefreshCw className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
+                    Salvar
+                  </Button>
+                </div>
+              ) : (
+                <Button size="sm" variant="outline" onClick={enterEditMode} className="h-7 px-2 text-xs">
+                  <Pencil className="h-3 w-3 mr-1" /> Editar cuidados
+                </Button>
+              )}
+            </div>
+
+            {editCare ? (
+              <div className="space-y-2.5 rounded-lg border border-muted-foreground/20 bg-muted/30 p-3">
+                <div>
+                  <Label htmlFor="edit-defects" className="flex items-center gap-1.5 text-xs">
+                    <AlertTriangle className="h-3 w-3 text-amber-600" /> Defeitos encontrados
+                  </Label>
+                  <Textarea
+                    id="edit-defects"
+                    value={editDefects}
+                    onChange={(e) => setEditDefects(e.target.value)}
+                    placeholder="ex: mancha amarelada perto da gola"
+                    rows={2}
+                    className="mt-1 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-care" className="text-xs">Instruções de lavagem</Label>
+                  <Textarea
+                    id="edit-care"
+                    value={editCareInstructions}
+                    onChange={(e) => setEditCareInstructions(e.target.value)}
+                    placeholder="ex: lavar à mão em água fria, não usar alvejante"
+                    rows={2}
+                    className="mt-1 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-restrict" className="text-xs">Restrições de uso</Label>
+                  <Textarea
+                    id="edit-restrict"
+                    value={editUsageRestrictions}
+                    onChange={(e) => setEditUsageRestrictions(e.target.value)}
+                    placeholder="ex: não usar em dias de chuva"
+                    rows={2}
+                    className="mt-1 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-tips" className="text-xs">Dicas de conservar</Label>
+                  <Textarea
+                    id="edit-tips"
+                    value={editCareTips}
+                    onChange={(e) => setEditCareTips(e.target.value)}
+                    placeholder="ex: mancha de gordura sai com detergente"
+                    rows={2}
+                    className="mt-1 text-sm"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <CareBox icon="🧺" label="Instruções de lavagem">
+                  {hasCare ? (
+                    <span className="text-sm">{garment.careInstructions}</span>
+                  ) : (
+                    <span className="text-sm text-muted-foreground italic">Não informado</span>
+                  )}
+                </CareBox>
+
+                {hasDefects ? (
+                  <div className="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
+                    <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                      <AlertTriangle className="h-3.5 w-3.5" /> ⚠️ Defeitos
+                    </p>
+                    <p className="mt-1 text-sm text-amber-900 dark:text-amber-100">{garment.defects}</p>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2">
+                    <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                      <span>✅</span> Defeitos
+                    </p>
+                    <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">Nenhum defeito ✅</p>
+                  </div>
+                )}
+
+                <CareBox icon="🚫" label="Restrições de uso">
+                  {hasRestrictions ? (
+                    <span className="text-sm">{garment.usageRestrictions}</span>
+                  ) : (
+                    <span className="text-sm text-muted-foreground italic">Nenhuma</span>
+                  )}
+                </CareBox>
+
+                <CareBox icon="💡" label="Dicas de conservar">
+                  {hasTips ? (
+                    <span className="text-sm">{garment.careTips}</span>
+                  ) : (
+                    <span className="text-sm text-muted-foreground italic">Nenhuma</span>
+                  )}
+                </CareBox>
+
+                {!hasAnyCare && (
+                  <p className="text-[11px] text-muted-foreground italic pt-1">
+                    Toque em "Editar cuidados" pra adicionar instruções de lavagem, defeitos ou dicas.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {garment.notes && (
@@ -224,6 +414,17 @@ function AttrRow({ icon, label, children }: { icon: React.ReactNode; label: stri
         {icon} {label}
       </span>
       {children}
+    </div>
+  );
+}
+
+function CareBox({ icon, label, children }: { icon: string; label: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-muted-foreground/20 bg-muted/40 px-3 py-2">
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+        <span aria-hidden>{icon}</span> {label}
+      </p>
+      <div className="mt-1">{children}</div>
     </div>
   );
 }

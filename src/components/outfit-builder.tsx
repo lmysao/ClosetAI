@@ -11,12 +11,13 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import { GarmentPickerDialog } from '@/components/garment-picker-dialog';
+import { VisualizeDialog } from '@/components/visualize-dialog';
 import { useAllGarments, useUseOutfit } from '@/lib/hooks';
 import { BUILDER_SLOTS, CATEGORIES, STATUS_LABELS } from '@/lib/constants';
 import type { Garment, EventType } from '@/lib/types';
 import { toast } from 'sonner';
 import {
-  Plus, X, RefreshCw, Check, Loader2, Shirt, Sparkles, Star, AlertCircle, CheckCircle2,
+  Plus, X, RefreshCw, Check, Loader2, Shirt, Sparkles, Star, AlertCircle, CheckCircle2, Eye,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -74,6 +75,7 @@ export function OutfitBuilder({
   const [saveUniform, setSaveUniform] = useState(false);
   const [uniformName, setUniformName] = useState(initialName);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [visualizeOpen, setVisualizeOpen] = useState(false);
   const [used, setUsed] = useState(false);
 
   // Lista de IDs já selecionados (para excluir do picker)
@@ -284,6 +286,15 @@ export function OutfitBuilder({
               Cancelar
             </Button>
           )}
+          <Button
+            variant="outline"
+            onClick={() => setVisualizeOpen(true)}
+            disabled={totalSelected === 0}
+            title="Visualizar este look (gera prompt + baixa ZIP para Nano Banana)"
+          >
+            <Eye className="h-4 w-4 mr-1.5" />
+            Visualizar
+          </Button>
           {used ? (
             <Button variant="secondary" className="flex-1" disabled>
               <CheckCircle2 className="h-4 w-4 mr-1.5 text-emerald-600" /> Look usado!
@@ -312,6 +323,13 @@ export function OutfitBuilder({
         excludeIds={[]}
         alreadySelectedIds={selectedIds}
         onPick={handlePick}
+      />
+
+      {/* Visualização (gera prompt + baixa ZIP) */}
+      <VisualizeDialog
+        open={visualizeOpen}
+        onOpenChange={setVisualizeOpen}
+        garmentIds={selectedIds}
       />
 
       {/* Confirmação */}

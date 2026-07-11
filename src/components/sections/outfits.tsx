@@ -21,11 +21,12 @@ import {
 import { useSuggestOutfits, useUseOutfit, useStats } from '@/lib/hooks';
 import { EVENT_TYPES, CATEGORIES } from '@/lib/constants';
 import { OutfitBuilder } from '@/components/outfit-builder';
+import { VisualizeDialog } from '@/components/visualize-dialog';
 import type { EventType, OutfitSuggestion } from '@/lib/types';
 import { toast } from 'sonner';
 import {
   Wand2, Loader2, Sparkles, Check, Clock, Cloud, Shirt, CheckCircle2, Star, ArrowRight,
-  Pencil, Hand,
+  Pencil, Hand, Eye,
 } from 'lucide-react';
 
 const vibeColors: Record<string, string> = {
@@ -50,6 +51,8 @@ export function Outfits() {
   const [usedSuggestion, setUsedSuggestion] = useState<string | null>(null);
   // Edição de sugestão da IA: abre o builder pré-preenchido
   const [editingSuggestion, setEditingSuggestion] = useState<OutfitSuggestion | null>(null);
+  // Visualização de sugestão da IA
+  const [visualizingSuggestion, setVisualizingSuggestion] = useState<OutfitSuggestion | null>(null);
 
   const suggestMut = useSuggestOutfits();
   const useMut = useUseOutfit();
@@ -315,7 +318,7 @@ export function Outfits() {
                 </div>
 
                 {/* Ações */}
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   {usedSuggestion === sug.id ? (
                     <Button variant="secondary" className="flex-1" disabled>
                       <CheckCircle2 className="h-4 w-4 mr-1.5 text-emerald-600" />
@@ -338,6 +341,13 @@ export function Outfits() {
                       >
                         <Pencil className="h-4 w-4 mr-1.5" />
                         Editar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setVisualizingSuggestion(sug)}
+                        title="Visualizar look (gera prompt + baixa ZIP para Nano Banana)"
+                      >
+                        <Eye className="h-4 w-4" />
                       </Button>
                     </>
                   )}
@@ -400,6 +410,13 @@ export function Outfits() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Dialog de visualização de sugestão da IA */}
+      <VisualizeDialog
+        open={!!visualizingSuggestion}
+        onOpenChange={(v) => { if (!v) setVisualizingSuggestion(null); }}
+        garmentIds={visualizingSuggestion?.garmentIds ?? []}
+      />
     </div>
   );
 }

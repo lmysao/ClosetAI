@@ -23,8 +23,17 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Excluir peças que estão reservadas para eventos futuros
+    const reserved = await db.reservedSet.findMany({ where: { status: 'reservado' } });
+    const reservedIds = new Set<string>();
+    for (const r of reserved) {
+      for (const id of JSON.parse(r.garmentIds) as string[]) reservedIds.add(id);
+    }
+
     // Filtrar íntimas: só disponíveis podem entrar (cueca/calcinha/meia/suter nunca reusar)
+    // + excluir reservadas
     const filtered = candidates.filter((g) => {
+      if (reservedIds.has(g.id)) return false;
       if (g.status === 'reusavel' && !canReuse(g.category)) return false;
       return true;
     });

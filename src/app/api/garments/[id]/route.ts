@@ -19,6 +19,7 @@ export async function PATCH(
     'name', 'subcategory', 'color', 'colorHex', 'pattern', 'fabric',
     'season', 'formality', 'gender', 'status', 'maxReuses',
     'timesWorn', 'reuseCount', 'lastWornAt', 'brand', 'notes', 'favorite',
+    'backImage', 'careInstructions', 'usageRestrictions', 'defects', 'careTips',
   ];
   const data: Record<string, unknown> = {};
   for (const k of allowed) {
