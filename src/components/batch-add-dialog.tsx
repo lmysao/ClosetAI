@@ -108,8 +108,8 @@ export function BatchAddDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[92vh] flex flex-col overflow-hidden gap-0">
-        <DialogHeader className="px-6 pt-6 pb-3 shrink-0">
+      <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto custom-scroll gap-0">
+        <DialogHeader className="pb-3">
           <DialogTitle className="flex items-center gap-2">
             <Layers className="h-5 w-5 text-primary" />
             Adicionar várias peças
@@ -119,8 +119,8 @@ export function BatchAddDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="multi" className="flex-1 min-h-0 flex flex-col px-6 pb-6">
-          <TabsList className="grid grid-cols-2 w-full shrink-0">
+        <Tabs defaultValue="multi" className="flex flex-col">
+          <TabsList className="grid grid-cols-2 w-full">
             <TabsTrigger value="multi">
               <Shirt className="h-3.5 w-3.5" /> Múltiplas fotos
             </TabsTrigger>
@@ -129,11 +129,11 @@ export function BatchAddDialog({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="multi" className="flex-1 min-h-0 overflow-hidden flex flex-col data-[state=inactive]:hidden mt-3">
+          <TabsContent value="multi" className="mt-3 data-[state=inactive]:hidden">
             <MultiPhotosTab onDone={() => onOpenChange(false)} />
           </TabsContent>
 
-          <TabsContent value="worn" className="flex-1 min-h-0 overflow-hidden flex flex-col data-[state=inactive]:hidden mt-3">
+          <TabsContent value="worn" className="mt-3 data-[state=inactive]:hidden">
             <WornOutfitTab onDone={() => onOpenChange(false)} />
           </TabsContent>
         </Tabs>
@@ -320,8 +320,8 @@ function MultiPhotosTab({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <div className="flex flex-col gap-3 min-h-0 flex-1">
-      <div className="flex items-center gap-2 flex-wrap shrink-0">
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2 flex-wrap">
         <Button
           type="button"
           variant="outline"
@@ -363,7 +363,7 @@ function MultiPhotosTab({ onDone }: { onDone: () => void }) {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1 min-h-0 overflow-y-auto custom-scroll pr-1 pb-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {items.map((item) => (
             <MultiItemCard
               key={item.id}
@@ -377,7 +377,7 @@ function MultiPhotosTab({ onDone }: { onDone: () => void }) {
       )}
 
       {saveProgress && (
-        <div className="space-y-1.5 shrink-0">
+        <div className="space-y-1.5">
           <Progress value={(saveProgress.done / saveProgress.total) * 100} className="h-2" />
           <p className="text-xs text-center text-muted-foreground">
             Salvando... {saveProgress.done}/{saveProgress.total}
@@ -386,7 +386,7 @@ function MultiPhotosTab({ onDone }: { onDone: () => void }) {
       )}
 
       {items.length > 0 && (
-        <div className="flex items-center justify-between gap-2 pt-2 border-t shrink-0 bg-background">
+        <div className="flex items-center justify-between gap-2 pt-2 border-t sticky bottom-0 bg-background/95 backdrop-blur py-2 -mx-1 px-1">
           <span className="text-xs text-muted-foreground">
             {totalAnalyzed}/{items.length} prontas para salvar
           </span>
@@ -692,8 +692,8 @@ function WornOutfitTab({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <div className="flex flex-col gap-3 min-h-0 flex-1">
-      <div className="flex items-center gap-2 flex-wrap shrink-0">
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2 flex-wrap">
         <Button
           type="button"
           variant="outline"
@@ -744,9 +744,9 @@ function WornOutfitTab({ onDone }: { onDone: () => void }) {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 min-h-0 overflow-y-auto custom-scroll pr-1 pb-1">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Photo */}
-          <div className="relative aspect-[3/4] w-full rounded-xl overflow-hidden bg-muted md:sticky md:top-0 md:self-start">
+          <div className="relative aspect-[3/4] w-full rounded-xl overflow-hidden bg-muted">
             <img
               src={imageData}
               alt="foto vestida"
@@ -781,7 +781,7 @@ function WornOutfitTab({ onDone }: { onDone: () => void }) {
       )}
 
       {saveProgress && (
-        <div className="space-y-1.5 shrink-0">
+        <div className="space-y-1.5">
           <Progress value={(saveProgress.done / saveProgress.total) * 100} className="h-2" />
           <p className="text-xs text-center text-muted-foreground">
             Salvando... {saveProgress.done}/{saveProgress.total}
@@ -790,7 +790,7 @@ function WornOutfitTab({ onDone }: { onDone: () => void }) {
       )}
 
       {imageData && pieces.length > 0 && (
-        <div className="flex items-center justify-between gap-2 pt-2 border-t shrink-0 bg-background">
+        <div className="flex items-center justify-between gap-2 pt-2 border-t sticky bottom-0 bg-background/95 backdrop-blur py-2 -mx-1 px-1">
           <span className="text-xs text-muted-foreground">
             {selectedCount}/{pieces.length} selecionadas
           </span>

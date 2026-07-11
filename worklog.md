@@ -243,3 +243,29 @@ Stage Summary:
 - Botões de salvar agora SEMPRE visíveis no rodapé do dialog (shrink-0 + bg-background)
 - Lista de peças/cards scrolla independentemente no espaço disponível (flex-1 + overflow-y-auto)
 - Funciona em mobile (390px) e desktop
+
+---
+Task ID: 12
+Agent: main
+Task: Re-corrigir scroll do batch-add-dialog (versão anterior quebrava no mobile, conteúdo sumia)
+
+Work Log:
+- Problema da versão anterior: usei flex-1 + min-h-0 + overflow-hidden + overflow-y-auto aninhados. No mobile, os filhos flex-1 colapsavam para 0 height, fazendo tabs e peças "sumirem". O usuário estava certo: havia scroll para a imagem mas o conteúdo do dialog ficava preso.
+- Nova abordagem SIMPLES e robusta: UM scroll só (o dialog inteiro), fluxo natural do conteúdo.
+  - DialogContent: max-h-[92vh] overflow-y-auto custom-scroll (o próprio dialog scrolls)
+  - Removido: flex flex-col, overflow-hidden, gap-0, shrink-0, flex-1, min-h-0, data-[state=inactive] desnecessário
+  - Tabs e TabsContent: classes simples (mt-3, flex flex-col), sem tentativa de scroll aninhado
+  - MultiPhotosTab/WornOutfitTab: div simples flex flex-col gap-3 (sem flex-1/min-h-0)
+  - Grid de cards: grid grid-cols-1 sm:grid-cols-2 gap-3 (sem overflow, sem max-h — cresce naturalmente)
+  - Rodapé com botão Salvar: sticky bottom-0 bg-background/95 backdrop-blur (fica fixo no fundo enquanto scrolls o conteúdo)
+- Verificação Agent Browser (mobile 390x844 E desktop 1280x800):
+  - Aba Foto vestida mobile: upload → IA detectou 2 peças (Tronco Superior/Camiseta + Pernas/Calça) → ambas visíveis com checkbox e nome → botão "Salvar peças selecionadas (2)" visível (bottom=777 em viewport 844) e permanece sticky ao rolar ✓
+  - Aba Múltiplas fotos mobile: upload de 5 imagens → cards visíveis → botão "Salvar todas" visível (bottom=777) e sticky ✓
+  - Desktop 1280x800: dialog 736px, botão salvar visível (bottom=735) ✓
+  - Sem erros de console, lint limpo
+
+Stage Summary:
+- Problema resolvido com abordagem simples: 1 scroll no dialog inteiro + sticky footer
+- Não usa mais flex-1/min-h-0/overflow aninhado (que causava colapso no mobile)
+- Funciona em mobile (390px) e desktop (1280px)
+- Botão Salvar sempre acessível (sticky bottom-0)
