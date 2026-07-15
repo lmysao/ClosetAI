@@ -19,9 +19,10 @@
 - [🔧 Variáveis de Ambiente](#-variáveis-de-ambiente)
 - [📁 Estrutura do Projeto](#-estrutura-do-projeto)
 - [📋 Scripts Disponíveis](#-scripts-disponíveis)
+- [🗄️ Configurando o Supabase (banco de dados)](#-configurando-o-supabase-banco-de-dados)
 - [☁️ Deploy no Render](#-deploy-no-render)
 - [⏰ Mantenha acordado com UptimeRobot](#-mantenha-acordado-com-uptimerobot)
-- [🗄️ Sobre o Banco de Dados (SQLite)](#-sobre-o-banco-de-dados-sqlite)
+- [🗄️ Sobre o Banco de Dados (Supabase / PostgreSQL)](#-sobre-o-banco-de-dados-supabase--postgresql)
 - [🤖 Sobre a IA (VLM + LLM)](#-sobre-a-ia-vlm--llm)
 - [❓ FAQ](#-faq)
 - [📄 Licença](#-licença)
@@ -103,7 +104,7 @@
 | **Framework** | [Next.js 16](https://nextjs.org/) (App Router, output standalone) |
 | **Linguagem** | [TypeScript 5](https://www.typescriptlang.org/) |
 | **Estilo** | [Tailwind CSS 4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) |
-| **Banco de dados** | [Prisma ORM](https://www.prisma.io/) + SQLite |
+| **Banco de dados** | [Prisma ORM](https://www.prisma.io/) + [Supabase](https://supabase.com/) (PostgreSQL) |
 | **Estado** | [Zustand](https://zustand.docs.pmnd.rs/) (cliente) + [TanStack Query](https://tanstack.com/query) (servidor) |
 | **IA** | [z-ai-web-dev-sdk](https://www.npmjs.com/package/z-ai-web-dev-sdk) (VLM + LLM) |
 | **Runtime/PackageManager** | [Bun](https://bun.sh/) |
@@ -142,13 +143,14 @@ bun install
 
 # 3. Configure as variáveis de ambiente
 cp .env.example .env
-# Edite o .env conforme necessário (ver seção abaixo)
+# Edite o .env com sua connection string do Supabase (ver seção abaixo)
 
 # 4. Crie o banco de dados e gere o client do Prisma
 bun run db:push
 
 # 5. (Opcional) Popule com peças demo para testar
-#    Use o botão "Criar peças demo" no dashboard da aplicação
+bun run seed
+#    Ou use o botão "Criar peças demo" no dashboard da aplicação
 
 # 6. Rode em desenvolvimento
 bun run dev
@@ -156,7 +158,7 @@ bun run dev
 
 Abra **http://localhost:3000** no navegador. 🎉
 
-> 💡 **Dica:** Clique em **"Criar peças demo"** no dashboard para popular com 31 peças masculinas de exemplo e testar todas as funcionalidades imediatamente.
+> 💡 **Dica:** Clique em **"Criar peças demo"** no dashboard (ou rode `bun run seed`) para popular com 31 peças masculinas de exemplo e testar todas as funcionalidades imediatamente.
 
 ---
 
@@ -165,8 +167,12 @@ Abra **http://localhost:3000** no navegador. 🎉
 Crie um arquivo `.env` na raiz do projeto (use `.env.example` como base):
 
 ```env
-# Banco de dados SQLite (caminho do arquivo)
-DATABASE_URL="file:./db/custom.db"
+# Banco de dados Supabase (PostgreSQL)
+# Pegue no painel: Project Settings → Database → Connection string → URI
+DATABASE_URL="postgresql://postgres:[SUA_SENHA]@db.[PROJETO].supabase.co:5432/postgres"
+
+# Para produção (Render, Vercel...), use a POOLER (porta 6543) p/ evitar esgotar conexões:
+# DATABASE_URL="postgresql://postgres.[PROJETO]:[SUA_SENHA]@aws-0-[regiao].pooler.supabase.com:6543/postgres"
 
 # Credenciais da IA (z-ai-web-dev-sdk)
 # Configure conforme a documentação do SDK
@@ -209,7 +215,12 @@ DATABASE_URL="file:./db/custom.db"
 │   │   └── db.ts              # Client Prisma
 │   └── hooks/                 # Hooks utilitários (use-mobile, use-toast)
 ├── public/                    # Assets estáticos
+├── scripts/
+│   └── seed.ts                # Script de seed (cria 31 peças demo via CLI)
+├── prisma/
+│   └── schema.prisma          # Schema PostgreSQL (provider = "postgresql")
 ├── .env                       # Variáveis (NÃO commitar)
+├── .env.example               # Template de variáveis
 ├── .gitignore
 ├── next.config.ts             # output: "standalone"
 ├── package.json
@@ -227,33 +238,89 @@ DATABASE_URL="file:./db/custom.db"
 | `bun run build` | Build de produção (gera `.next/standalone`) |
 | `bun run start` | Inicia o servidor de produção (após build) |
 | `bun run lint` | Roda o ESLint |
-| `bun run db:push` | Sincroniza o schema Prisma com o banco |
+| `bun run db:push` | Sincroniza o schema Prisma com o banco (cria tabelas) |
 | `bun run db:generate` | Regenera o client do Prisma |
 | `bun run db:migrate` | Cria e aplica migrations (desenvolvimento) |
 | `bun run db:reset` | Reseta o banco (cuidado!) |
+| `bun run seed` | Cria 31 peças demo (se banco vazio) |
+| `bun run seed:force` | Força recriação das peças demo (apaga tudo) |
+
+---
+
+## 🗄️ Configurando o Supabase (banco de dados)
+
+O projeto usa **Supabase** (PostgreSQL gerenciado com free tier generoso: 500MB + dashboard + backup automático).
+
+### Passo 1: Crie a conta e o projeto
+
+1. Acesse [supabase.com](https://supabase.com/) e cadastre-se (pode ser com GitHub)
+2. Clique em **New Project**
+3. Configure:
+   - **Name:** `closetai` (ou o nome que preferir)
+   - **Database Password:** crie uma senha forte **e guarde-a** 🔑
+   - **Region:** a mais próxima de você (ex: South America — São Paulo)
+   - **Plan:** Free
+4. Aguarde ~2 minutos para o projeto provisionar
+
+### Passo 2: Pegue a connection string
+
+1. No painel do Supabase, vá em **Project Settings** (⚙️ ícone no rodapé esquerdo) → **Database**
+2. Na seção **Connection String**, escolha **URI**
+3. Você verá algo como:
+   ```
+   postgresql://postgres:[YOUR-PASSWORD]@db.abcdefghij.supabase.co:5432/postgres
+   ```
+4. Substitua `[YOUR-PASSWORD]` pela senha que criou no Passo 1
+
+> 💡 **Duas conexões disponíveis:**
+> - **Direct connection** (porta `5432`) — para migrations locais e `db:push`
+> - **Connection pooler** (porta `6543`) — para produção (app web), evita esgotar conexões. Pegue na aba "Connection pooling"
+
+### Passo 3: Configure localmente
+
+1. Copie `.env.example` para `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+2. Edite o `.env` com sua connection string **direta** (porta 5432):
+   ```env
+   DATABASE_URL="postgresql://postgres:SUA_SENHA@db.abcdefghij.supabase.co:5432/postgres"
+   ```
+3. Crie as tabelas no banco:
+   ```bash
+   bun run db:push
+   ```
+4. (Opcional) Popule com peças demo:
+   ```bash
+   bun run seed
+   ```
+5. Rode o projeto:
+   ```bash
+   bun run dev
+   ```
+
+### Passo 4: Verifique no painel do Supabase
+
+Após rodar `bun run db:push`, abra o **Table Editor** no painel do Supabase — você verá as tabelas criadas:
+- `Garment`, `Outfit`, `WashLog`, `ShoppingTip`, `EventItem`, `ReservedSet`, `TravelPlan`, `ModelPhoto`
+
+Se rodou `bun run seed`, a tabela `Garment` terá 31 peças demo. Você pode editar/ver os dados direto pelo dashboard! 🎉
 
 ---
 
 ## ☁️ Deploy no Render
 
-O Render é uma plataforma PaaS que suporta Next.js com deploy automático via GitHub.
+O Render hospeda a aplicação Next.js. O banco fica no Supabase (independente do host).
 
 ### Passo 1: Prepare o repositório
 
-1. **Adicione `db/` ao `.gitignore`** (para não commitar o banco SQLite local):
-   ```gitignore
-   # banco sqlite local
-   /db/
-   ```
+```bash
+git add .
+git commit -m "feat: ClosetAI - guarda-roupa inteligente com IA"
+git push origin main
+```
 
-2. **Crie um `.env.example`** (já deve existir) e confirme que `.env` está ignorado.
-
-3. **Faça commit e push** para o GitHub:
-   ```bash
-   git add .
-   git commit -m "feat: ClosetAI - guarda-roupa inteligente com IA"
-   git push origin main
-   ```
+> ✅ O `.gitignore` já está configurado: `.env`, `db/`, `node_modules`, `.next/` não são commitados.
 
 ### Passo 2: Crie o serviço no Render
 
@@ -268,9 +335,9 @@ O Render é uma plataforma PaaS que suporta Next.js com deploy automático via G
 | **Runtime** | `Node` (ou deixe auto-detectar) |
 | **Build Command** | `bun install && bun run db:generate && bun run build` |
 | **Start Command** | `bun .next/standalone/server.js` |
-| **Plan** | `Free` (ou `Starter` para não hibernar) |
+| **Plan** | `Free` (ou `Starter` $7/mês para não hibernar) |
 
-> ⚠️ **Importante sobre o Start Command:** O script `start` do `package.json` usa `2>&1 | tee server.log` que pode falhar no Render. Use o comando direto `bun .next/standalone/server.js` no campo de Start.
+> ⚠️ **Start Command:** O script `start` do `package.json` usa `2>&1 | tee server.log` que pode falhar no Render. Use o comando direto `bun .next/standalone/server.js`.
 
 ### Passo 3: Configure as variáveis de ambiente no Render
 
@@ -278,36 +345,32 @@ Na aba **Environment** do serviço, adicione:
 
 | Key | Value |
 |-----|-------|
-| `DATABASE_URL` | `file:./db/custom.db` (ver seção sobre disco persistente abaixo) |
+| `DATABASE_URL` | Connection string do Supabase — **use a POOLER (porta 6543)** |
 | `NODE_ENV` | `production` |
+
+**Exemplo de `DATABASE_URL` para o Render (pooler):**
+```
+postgresql://postgres.abcdefghij:SUA_SENHA@aws-0-sa-east-1.pooler.supabase.com:6543/postgres
+```
+
+> 💡 Pegue essa URL no painel do Supabase: **Project Settings → Database → Connection pooling → URI**
 
 Adicione também as credenciais da IA conforme o SDK exigir.
 
-### Passo 4: Disco persistente (IMPORTANTE para SQLite)
-
-Como o Render tem filesystem efêmero (a cada deploy o disco é resetado), você precisa de um **Disk** para o banco SQLite não ser perdido:
-
-1. Na aba **Disks** do serviço, clique em **Add Disk**
-2. Configure:
-   - **Name:** `closetai-data`
-   - **Mount Path:** `/opt/data` (ou outro path)
-   - **Size:** `1 GB` (suficiente para SQLite + imagens base64)
-3. Atualize a variável de ambiente:
-   - `DATABASE_URL` = `file:/opt/data/custom.db`
-
-> 💡 **Alternativa:** Se preferir não usar disco, migre para **PostgreSQL** (Render oferece Postgres grátis). Será necessário trocar o `provider` no `schema.prisma` de `sqlite` para `postgresql` e ajustar tipos (ex: `String` para IDs, remover `file:`). Para um app pessoal, SQLite + disco é mais simples.
-
-### Passo 5: Deploy
+### Passo 4: Deploy
 
 1. Clique em **Create Web Service** (ou **Save Changes** se já existir)
-2. Aguarde o build (pode levar 2-5 minutos na primeira vez)
+2. Aguarde o build (2-5 minutos na primeira vez)
 3. Quando terminar, acesse a URL: `https://closetai.onrender.com`
-4. Na primeira vez após o deploy, **rode a migration** via Shell:
-   - Vá em **Shell** no Render
-   - Execute: `bun run db:push`
-   - Isso cria o banco no disco persistente
+4. Na primeira vez, o `bun run db:push` já foi rodado no build (Build Command), então as tabelas já existem no Supabase
+5. (Opcional) Se quiser peças demo em produção, rode via **Shell** no Render:
+   ```bash
+   bun run seed
+   ```
 
-> 🔄 **Deploy automático:** Se você habilitar "Auto-Deploy" no Render, todo `git push` na `main` vai re-deployar automaticamente.
+> 🔄 **Deploy automático:** Habilite "Auto-Deploy" no Render para re-deployar a cada `git push` na `main`.
+>
+> 🆓 **Sem disco persistente necessário!** Como o banco é no Supabase, você **não precisa** de Disk no Render. Tudo é externo.
 
 ---
 
@@ -345,20 +408,22 @@ O plano **Free** do Render **hiberna** após 15 minutos de inatividade (o primei
 
 ---
 
-## 🗄️ Sobre o Banco de Dados (SQLite)
+## 🗄️ Sobre o Banco de Dados (Supabase / PostgreSQL)
 
-O projeto usa **SQLite** via Prisma por simplicidade (app pessoal, sem concorrência alta). As imagens das peças são armazenadas como **base64** diretamente no banco (data URLs), o que evita a necessidade de storage externo (S3, etc.).
+O projeto usa **Supabase** (PostgreSQL gerenciado) via Prisma ORM. As imagens das peças são armazenadas como **base64** em colunas `@db.Text` (text ilimitado) — funciona bem para um app pessoal e evita a necessidade de storage externo.
 
-**Vantagens:**
-- ✅ Zero configuração de storage
-- ✅ Backup = copiar o arquivo `.db`
-- ✅ Funciona offline/local facilmente
+**Vantagens dessa abordagem:**
+- ✅ Banco independente do host (troque Render por Vercel/Railway sem migrar dados)
+- ✅ Dashboard web do Supabase para ver/editar dados manualmente
+- ✅ Backup automático (mesmo no free tier)
+- ✅ Free generoso: 500MB banco + 1GB storage + 50k requisições/mês
+- ✅ Pronto para escalar (auth, storage, realtime já inclusos)
 
 **Desvantagens:**
-- ⚠️ Banco pode crescer (~50KB por imagem após resize para 800px)
-- ⚠️ Não recomendado para multi-usuário com alta concorrência
+- ⚠️ Free tier hiberna após 1 semana inativo (mesma necessidade de UptimeRobot)
+- ⚠️ Banco pode crescer (~50KB por imagem após resize para 800px) — 500MB comporta ~10.000 peças
 
-**Para escalar (multi-usuário):** Migre para PostgreSQL e movenha as imagens para um bucket S3/Cloudflare R2.
+**Para escalar (multi-usuário / muitas imagens):** Mova as imagens base64 para o **Storage do Supabase** (1GB grátis) e guarde apenas a URL no banco. Adicione NextAuth.js para auth multi-usuário.
 
 ### Models principais
 
@@ -391,17 +456,17 @@ O projeto usa o **z-ai-web-dev-sdk** que fornece:
 ## ❓ FAQ
 
 ### Onde ficam armazenadas as fotos das roupas?
-As fotos são redimensionadas para no máx. 800px no cliente, convertidas para JPEG (~50KB) e armazenadas como **base64** no banco SQLite. Não há upload para serviços externos.
+As fotos são redimensionadas para no máx. 800px no cliente, convertidas para JPEG (~50KB) e armazenadas como **base64** em colunas `@db.Text` no Supabase (PostgreSQL). Não há upload para serviços externos.
 
 ### A IA funciona offline?
 Não. As chamadas de VLM/LLM precisam de internet e das credenciais do SDK configuradas.
 
 ### Como fazer backup dos meus dados?
-- **Local:** Copie o arquivo `db/custom.db`
-- **Render:** Use a aba **Shell** ou conecte via SSH para copiar do disco persistente
+- **Via Supabase:** O Supabase faz backup automático. Para backup manual, vá em **Dashboard → Database → Backups** ou exporte via SQL Editor (`COPY ... TO ...`)
+- **Via Prisma:** Use `bun run db:migrate` para ter histórico de migrations versionadas
 
 ### Posso usar com múltiplos usuários?
-Atualmente é single-user (sem autenticação). Para multi-usuário, seria necessário adicionar NextAuth.js + migrar para Postgres + adicionar `userId` nos models.
+Atualmente é single-user (sem autenticação). Como o banco já é PostgreSQL no Supabase, para multi-usuário bastaria adicionar NextAuth.js (ou Supabase Auth) + um campo `userId` nos models. O Supabase já traz auth pronto.
 
 ### As combinações da IA são determinísticas?
 Não, o LLM gera combinações variadas a cada chamada. As regras (íntimas sempre disponíveis, respeitar reuso, excluir reservadas) são aplicadas via filtros antes de enviar para a IA.
