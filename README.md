@@ -19,10 +19,9 @@
 - [🔧 Variáveis de Ambiente](#-variáveis-de-ambiente)
 - [📁 Estrutura do Projeto](#-estrutura-do-projeto)
 - [📋 Scripts Disponíveis](#-scripts-disponíveis)
-- [🗄️ Configurando o Supabase (banco de dados)](#-configurando-o-supabase-banco-de-dados)
+- [🗄️ Sobre o Banco de Dados (SQLite)](#-sobre-o-banco-de-dados-sqlite)
 - [☁️ Deploy no Render](#-deploy-no-render)
 - [⏰ Mantenha acordado com UptimeRobot](#-mantenha-acordado-com-uptimerobot)
-- [🗄️ Implementação do Banco (Supabase / PostgreSQL)](#-implementação-do-banco-supabase--postgresql)
 - [🤖 Sobre a IA (VLM + LLM)](#-sobre-a-ia-vlm--llm)
 - [❓ FAQ](#-faq)
 - [📄 Licença](#-licença)
@@ -104,7 +103,7 @@
 | **Framework** | [Next.js 16](https://nextjs.org/) (App Router, output standalone) |
 | **Linguagem** | [TypeScript 5](https://www.typescriptlang.org/) |
 | **Estilo** | [Tailwind CSS 4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) |
-| **Banco de dados** | [Prisma ORM](https://www.prisma.io/) + [Supabase](https://supabase.com/) (PostgreSQL) |
+| **Banco de dados** | [Prisma ORM](https://www.prisma.io/) + SQLite (local) |
 | **Estado** | [Zustand](https://zustand.docs.pmnd.rs/) (cliente) + [TanStack Query](https://tanstack.com/query) (servidor) |
 | **IA** | [z-ai-web-dev-sdk](https://www.npmjs.com/package/z-ai-web-dev-sdk) (VLM + LLM) |
 | **Runtime/PackageManager** | [Bun](https://bun.sh/) |
@@ -143,7 +142,7 @@ bun install
 
 # 3. Configure as variáveis de ambiente
 cp .env.example .env
-# Edite o .env com sua connection string do Supabase (ver seção abaixo)
+# O .env já vem com DATABASE_URL apontando para SQLite local (db/custom.db)
 
 # 4. Crie o banco de dados e gere o client do Prisma
 bun run db:push
@@ -167,12 +166,11 @@ Abra **http://localhost:3000** no navegador. 🎉
 Crie um arquivo `.env` na raiz do projeto (use `.env.example` como base):
 
 ```env
-# Banco de dados Supabase (PostgreSQL)
-# Pegue no painel: Project Settings → Database → Connection string → URI
-DATABASE_URL="postgresql://postgres:[SUA_SENHA]@db.[PROJETO].supabase.co:5432/postgres"
+# Banco de dados SQLite local (arquivo na pasta db/)
+DATABASE_URL="file:/home/z/my-project/db/custom.db"
 
-# Para produção (Render, Vercel...), use a POOLER (porta 6543) p/ evitar esgotar conexões:
-# DATABASE_URL="postgresql://postgres.[PROJETO]:[SUA_SENHA]@aws-0-[regiao].pooler.supabase.com:6543/postgres"
+# Em produção no Render, use disco persistente (ver seção Deploy):
+# DATABASE_URL="file:/opt/data/custom.db"
 
 # Credenciais da IA (z-ai-web-dev-sdk)
 # Configure conforme a documentação do SDK
@@ -218,7 +216,7 @@ DATABASE_URL="postgresql://postgres:[SUA_SENHA]@db.[PROJETO].supabase.co:5432/po
 ├── scripts/
 │   └── seed.ts                # Script de seed (cria 31 peças demo via CLI)
 ├── prisma/
-│   └── schema.prisma          # Schema PostgreSQL (provider = "postgresql")
+│   └── schema.prisma          # Schema SQLite (provider = "sqlite")
 ├── .env                       # Variáveis (NÃO commitar)
 ├── .env.example               # Template de variáveis
 ├── .gitignore
@@ -247,70 +245,9 @@ DATABASE_URL="postgresql://postgres:[SUA_SENHA]@db.[PROJETO].supabase.co:5432/po
 
 ---
 
-## 🗄️ Configurando o Supabase (banco de dados)
-
-O projeto usa **Supabase** (PostgreSQL gerenciado com free tier generoso: 500MB + dashboard + backup automático).
-
-### Passo 1: Crie a conta e o projeto
-
-1. Acesse [supabase.com](https://supabase.com/) e cadastre-se (pode ser com GitHub)
-2. Clique em **New Project**
-3. Configure:
-   - **Name:** `closetai` (ou o nome que preferir)
-   - **Database Password:** crie uma senha forte **e guarde-a** 🔑
-   - **Region:** a mais próxima de você (ex: South America — São Paulo)
-   - **Plan:** Free
-4. Aguarde ~2 minutos para o projeto provisionar
-
-### Passo 2: Pegue a connection string
-
-1. No painel do Supabase, vá em **Project Settings** (⚙️ ícone no rodapé esquerdo) → **Database**
-2. Na seção **Connection String**, escolha **URI**
-3. Você verá algo como:
-   ```
-   postgresql://postgres:[YOUR-PASSWORD]@db.abcdefghij.supabase.co:5432/postgres
-   ```
-4. Substitua `[YOUR-PASSWORD]` pela senha que criou no Passo 1
-
-> 💡 **Duas conexões disponíveis:**
-> - **Direct connection** (porta `5432`) — para migrations locais e `db:push`
-> - **Connection pooler** (porta `6543`) — para produção (app web), evita esgotar conexões. Pegue na aba "Connection pooling"
-
-### Passo 3: Configure localmente
-
-1. Copie `.env.example` para `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-2. Edite o `.env` com sua connection string **direta** (porta 5432):
-   ```env
-   DATABASE_URL="postgresql://postgres:SUA_SENHA@db.abcdefghij.supabase.co:5432/postgres"
-   ```
-3. Crie as tabelas no banco:
-   ```bash
-   bun run db:push
-   ```
-4. (Opcional) Popule com peças demo:
-   ```bash
-   bun run seed
-   ```
-5. Rode o projeto:
-   ```bash
-   bun run dev
-   ```
-
-### Passo 4: Verifique no painel do Supabase
-
-Após rodar `bun run db:push`, abra o **Table Editor** no painel do Supabase — você verá as tabelas criadas:
-- `Garment`, `Outfit`, `WashLog`, `ShoppingTip`, `EventItem`, `ReservedSet`, `TravelPlan`, `ModelPhoto`
-
-Se rodou `bun run seed`, a tabela `Garment` terá 31 peças demo. Você pode editar/ver os dados direto pelo dashboard! 🎉
-
----
-
 ## ☁️ Deploy no Render
 
-O Render hospeda a aplicação Next.js. O banco fica no Supabase (independente do host).
+O Render hospeda a aplicação Next.js. O banco SQLite fica num **disco persistente** montado no serviço.
 
 ### Passo 1: Prepare o repositório
 
@@ -339,38 +276,45 @@ git push origin main
 
 > ⚠️ **Start Command:** O script `start` do `package.json` usa `2>&1 | tee server.log` que pode falhar no Render. Use o comando direto `bun .next/standalone/server.js`.
 
-### Passo 3: Configure as variáveis de ambiente no Render
+### Passo 3: Disco persistente (IMPORTANTE para SQLite)
+
+Como o Render tem filesystem efêmero (a cada deploy o disco é resetado), você precisa de um **Disk** para o banco SQLite não ser perdido:
+
+1. Na aba **Disks** do serviço, clique em **Add Disk**
+2. Configure:
+   - **Name:** `closetai-data`
+   - **Mount Path:** `/opt/data`
+   - **Size:** `1 GB` (suficiente para SQLite + imagens base64)
+3. Configure a variável de ambiente (ver Passo 4):
+
+### Passo 4: Configure as variáveis de ambiente no Render
 
 Na aba **Environment** do serviço, adicione:
 
 | Key | Value |
 |-----|-------|
-| `DATABASE_URL` | Connection string do Supabase — **use a POOLER (porta 6543)** |
+| `DATABASE_URL` | `file:/opt/data/custom.db` (caminho no disco persistente) |
 | `NODE_ENV` | `production` |
-
-**Exemplo de `DATABASE_URL` para o Render (pooler):**
-```
-postgresql://postgres.abcdefghij:SUA_SENHA@aws-0-sa-east-1.pooler.supabase.com:6543/postgres
-```
-
-> 💡 Pegue essa URL no painel do Supabase: **Project Settings → Database → Connection pooling → URI**
 
 Adicione também as credenciais da IA conforme o SDK exigir.
 
-### Passo 4: Deploy
+### Passo 5: Deploy
 
 1. Clique em **Create Web Service** (ou **Save Changes** se já existir)
 2. Aguarde o build (2-5 minutos na primeira vez)
 3. Quando terminar, acesse a URL: `https://closetai.onrender.com`
-4. Na primeira vez, o `bun run db:push` já foi rodado no build (Build Command), então as tabelas já existem no Supabase
-5. (Opcional) Se quiser peças demo em produção, rode via **Shell** no Render:
-   ```bash
-   bun run seed
-   ```
+4. Na primeira vez após o deploy, **rode a migration + seed** via Shell:
+   - Vá em **Shell** no Render
+   - Execute:
+     ```bash
+     bun run db:push
+     bun run seed
+     ```
+   - Isso cria o banco no disco persistente e popula com peças demo
 
 > 🔄 **Deploy automático:** Habilite "Auto-Deploy" no Render para re-deployar a cada `git push` na `main`.
 >
-> 🆓 **Sem disco persistente necessário!** Como o banco é no Supabase, você **não precisa** de Disk no Render. Tudo é externo.
+> ⚠️ **Atenção:** O disco persistente é **necessário** com SQLite. Sem ele, o banco é perdido a cada deploy. Para evitar essa gestão, migre para PostgreSQL (Render Postgres grátis ou Supabase) — ver seção "Caminho de escala".
 
 ---
 
@@ -408,59 +352,59 @@ O plano **Free** do Render **hiberna** após 15 minutos de inatividade (o primei
 
 ---
 
-## 🗄️ Implementação do Banco (Supabase / PostgreSQL)
+## 🗄️ Sobre o Banco de Dados (SQLite)
 
 ### Arquitetura
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────────┐
-│   Next.js App   │────▶│   Prisma ORM    │────▶│   Supabase (PG)     │
-│  (Render/Vercel)│     │  (server-side)  │     │  postgresql://...   │
+│   Next.js App   │────▶│   Prisma ORM    │────▶│   SQLite (arquivo)  │
+│  (Render/local) │     │  (server-side)  │     │  db/custom.db       │
 └─────────────────┘     └─────────────────┘     └─────────────────────┘
-         │                                              │
-         │                                      ┌──────┴──────┐
-         │                                      │  Dashboard  │
-         │                                      │  (Table     │
-         │                                      │  Editor,    │
-         │                                      │  SQL, etc)  │
-         └────── imagens base64 @db.Text ───────┤             │
-                                                └─────────────┘
+                                                         │
+                                                         │
+                                          ┌──────────────┴──────────────┐
+                                          │  imagens base64 em TEXT     │
+                                          │  (mesmo arquivo do banco)   │
+                                          └─────────────────────────────┘
 ```
 
-O app (Next.js) roda no host (Render/Vercel/Railway). O banco (PostgreSQL) roda no Supabase, **independente do host**. As imagens das peças são armazenadas como **base64** diretamente em colunas `@db.Text` do PostgreSQL — sem storage externo (S3, etc.).
+O app (Next.js) roda no host (local ou Render). O banco é um **arquivo SQLite** (`db/custom.db`) no filesystem. As imagens das peças são armazenadas como **base64** em colunas `String` do SQLite — sem storage externo (S3, etc.).
+
+> 💡 **Prisma + SQLite:** O Prisma é um ORM (biblioteca no seu código) que traduz queries TypeScript em SQL. O SQLite é o banco de dados em si (arquivo local). Eles não competem — trabalham juntos: Prisma lê/escreve no arquivo SQLite via `DATABASE_URL="file:..."`.
 
 ### Como o schema está configurado
 
-O `prisma/schema.prisma` usa `provider = "postgresql"`:
+O `prisma/schema.prisma` usa `provider = "sqlite"`:
 
 ```prisma
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 ```
 
-**Campos `@db.Text`** — no PostgreSQL, o tipo `String` padrão do Prisma vira `TEXT` (ilimitado), mas marcamos explicitamente com `@db.Text` os campos que guardam dados grandes (imagens base64 ~50KB, JSON arrays, textos longos de razões/dicas). Isso garante performance e evita surpresas:
+No SQLite, todos os campos `String` do Prisma viram `TEXT` (sem limite de tamanho). Por isso não precisamos de anotações especiais como `@db.Text` — o SQLite é flexível com isso.
 
 ```prisma
 model Garment {
   // ...
-  imageData          String    @db.Text    // imagem frontal base64 (~50KB)
-  backImage          String?   @db.Text    // imagem do verso base64 (opcional)
-  careInstructions   String?   @db.Text    // texto livre de cuidados
-  usageRestrictions  String?   @db.Text
-  defects            String?   @db.Text
-  careTips           String?   @db.Text
+  imageData          String    // imagem frontal base64 (~50KB) — vira TEXT no SQLite
+  backImage          String?   // imagem do verso base64 (opcional)
+  careInstructions   String?   // texto livre de cuidados
+  usageRestrictions  String?
+  defects            String?
+  careTips           String?
   // ...
 }
 
 model Outfit {
-  garmentIds  String  @db.Text @default("[]")  // JSON array de IDs
-  reason      String? @db.Text                  // explicação da IA
+  garmentIds  String  @default("[]")  // JSON array de IDs (serializado como string)
+  reason      String?                 // explicação da IA
 }
 ```
 
-Todos os campos `garmentIds` (JSON arrays serializados como string), `reason`, `notes`, `imageData` usam `@db.Text`.
+Todos os campos `garmentIds` (JSON arrays serializados), `reason`, `notes`, `imageData` são guardados como `TEXT`.
 
 ### Como as imagens são armazenadas
 
@@ -469,35 +413,14 @@ Todos os campos `garmentIds` (JSON arrays serializados como string), `reason`, `
 1. **Cliente (browser):** usuário tira foto ou escolhe da galeria
 2. **`resizeImage()` em `src/lib/image-utils.ts`:** redimensiona para máx. 800px via canvas, converte para JPEG qualidade 0.82 → data URL `data:image/jpeg;base64,...` (~30-50KB)
 3. **API Route:** recebe a data URL e salva direto no banco via Prisma (`imageData: dataUrl`)
-4. **Banco (Supabase):** armazena como `TEXT` na coluna `imageData`
+4. **Banco (SQLite):** armazena como `TEXT` na coluna `imageData` do arquivo `db/custom.db`
 5. **Leitura:** a API retorna a data URL, o `<img src={dataUrl}>` renderiza direto
 
 **Por que base64 e não storage externo?**
 - ✅ Simplifica muito — sem upload, sem URLs assinadas, sem CORS
-- ✅ Backup = dump do banco (tudo junto)
-- ✅ Funciona para app pessoal (500MB comporta ~10.000 peças)
-- ⚠️ Trade-off: banco cresce mais rápido. Para escalar, mover para Storage do Supabase (ver seção abaixo).
-
-### Duas conexões: Direct vs Pooler
-
-O Supabase oferece dois endpoints. **Use o certo em cada contexto:**
-
-| Contexto | Conexão | Porta | Quando usar |
-|----------|---------|-------|-------------|
-| **Local / migrations** | Direct | `5432` | `bun run db:push`, `bun run db:migrate`, `bun run seed` |
-| **Produção (web app)** | Pooler (PgBouncer) | `6543` | Render, Vercel, Railway — evita esgotar conexões |
-
-**Direct (porta 5432):**
-```
-postgresql://postgres:[SENHA]@db.[PROJETO].supabase.co:5432/postgres
-```
-
-**Pooler (porta 6543) — para produção:**
-```
-postgresql://postgres.[PROJETO]:[SENHA]@aws-0-[regiao].pooler.supabase.com:6543/postgres
-```
-
-> ⚠️ **Não use a direct (5432) em produção web!** Cada requisição abre uma conexão e o Supabase limita a ~60 conexões diretas no free tier. O pooler (PgBouncer) multiplica essa capacidade.
+- ✅ Backup = copiar um arquivo (`db/custom.db`)
+- ✅ Funciona para app pessoal (1GB no Render comporta ~20.000 peças)
+- ⚠️ Trade-off: banco cresce mais rápido. Para escalar, mover para storage externo (ver seção abaixo).
 
 ### Como o Prisma Client é gerado
 
@@ -539,72 +462,47 @@ Também dá pra criar peças demo pela UI (botão "Criar peças demo" no dashboa
 
 Após `bun run db:push` + `bun run seed`:
 
-1. **Painel do Supabase** → **Table Editor** → veja as 8 tabelas: `Garment`, `Outfit`, `WashLog`, `ShoppingTip`, `EventItem`, `ReservedSet`, `TravelPlan`, `ModelPhoto`
-2. Clique em `Garment` → deve ter 31 linhas (peças demo)
-3. **SQL Editor** → rode uma query de teste:
-   ```sql
-   SELECT category, COUNT(*) as total
-   FROM "Garment"
-   GROUP BY category
-   ORDER BY total DESC;
+1. **Local:** o arquivo `db/custom.db` deve existir (alguns MB de tamanho)
+2. **Inspecione via CLI (opcional):**
+   ```bash
+   # Se tiver sqlite3 instalado:
+   sqlite3 db/custom.db "SELECT category, COUNT(*) FROM Garment GROUP BY category;"
    ```
-4. Na aplicação (`bun run dev`), o dashboard deve mostrar "31 peças"
+3. **Na aplicação** (`bun run dev`), o dashboard deve mostrar "31 peças"
+4. **No Render:** rode via Shell `bun run db:push && bun run seed` — depois acesse a URL
 
 ### Troubleshooting comum
 
 **❌ `Error: P1001: Can't reach database server`**
-- Verifique a connection string (senha, host, porta)
-- Confirme que o projeto Supabase não está pausado (free tier hiberna após 1 semana inativo)
-- Teste a conexão: `bun run db:pull` (deve conectar e puxar o schema)
+- Improvável com SQLite (é arquivo local) — verifique se a pasta `db/` existe e o caminho no `.env` está correto
+- No Render: confirme que o disco persistente está montado em `/opt/data` e `DATABASE_URL=file:/opt/data/custom.db`
 
-**❌ `Error: P1010: User was denied access`**
-- Senha incorreta — pegue novamente no painel do Supabase
-- Confirme que está usando `postgres` como usuário (não um role customizado)
-
-**❌ `Error: P1003: Database does not exist`**
-- A connection string deve terminar com `/postgres` (o nome do banco default)
-- Verifique: `...supabase.co:5432/postgres`
-
-**❌ `Error: Timed out fetching a new connection from the connection pool` (em produção)**
-- Você está usando a conexão **direct** (5432) em vez da **pooler** (6543)
-- Troque para a URL do pooler no ambiente de produção
+**❌ `Error: SQLITE_BUSY: database is locked`**
+- Outro processo está usando o banco — reinicie o dev server
+- Em produção com SQLite, evite requisições concorrentes pesadas (não é problema pra app pessoal)
 
 **❌ App funciona local mas não no Render**
-- Confirme que `DATABASE_URL` no Render usa a **pooler** (porta 6543)
-- O Build Command inclui `bun run db:generate` (necessário para gerar o client)
+- Confirme que `DATABASE_URL` no Render aponta para `file:/opt/data/custom.db` (disco persistente)
+- Sem disco persistente, o banco é perdido a cada deploy!
 - Verifique os logs do Render — erros do Prisma aparecem lá
 
-**❌ Tabelas não aparecem no Table Editor do Supabase**
-- Rode `bun run db:push` novamente (pode ter falhado silenciosamente)
-- Confirme que está conectado ao projeto correto (mesmo ref no painel)
-- O Prisma cria as tabelas com aspas duplas (case-sensitive) — `Garment` não `garment`
+**❌ Banco perdido após deploy no Render**
+- Você esqueceu o **Disk persistente** (Passo 3 do Deploy). Adicione um disco em `/opt/data` e configure `DATABASE_URL=file:/opt/data/custom.db`
 
-### Notas de migração (se vier do SQLite)
-
-Se você tinha dados no SQLite local e quer migrar para o Supabase:
-
-1. **Exporte os dados do SQLite:**
-   ```bash
-   # Instale sqlite3 CLI se não tiver
-   sqlite3 db/custom.db ".mode csv" ".output garments.csv" "SELECT * FROM Garment;" ".quit"
-   ```
-
-2. **Importe no Supabase via SQL Editor:**
-   - Abra o SQL Editor no painel do Supabase
-   - Use `COPY "Garment" FROM '...'` (via arquivo CSV upload) ou insira manualmente
-
-3. **Alternativa mais simples:** use o [Prisma Data Migration](https://www.prisma.io/docs/orm/prisma-migrate/workflows/data-migration) ou escreva um script que lê do SQLite e escreve no Postgres via Prisma.
-
-> 💡 Se está começando do zero (sem dados importantes), apenas rode `bun run db:push` + `bun run seed` no novo banco e pronto.
+**❌ Tabelas não aparecem / "No such table"**
+- Rode `bun run db:push` (cria as tabelas)
+- No Render, rode via Shell: `bun run db:push`
 
 ### Caminho de escala (futuro)
 
 | Cenário | O que fazer |
 |---------|-------------|
-| **Banco crescendo (>400MB)** | Mover imagens base64 para o **Storage do Supabase** (1GB grátis), guardar só a URL no banco |
-| **Multi-usuário** | Adicionar `userId` nos models + usar **Supabase Auth** (já incluso) ou NextAuth.js |
-| **Muitas leituras** | Habilitar **Supabase Read Replicas** (plano Pro) ou adicionar cache com Redis |
-| **Realtime** (notificações de lavanderia, etc) | Usar **Supabase Realtime** (já incluso) em vez de polling |
+| **Banco crescendo (>800MB)** | Mover imagens base64 para um storage externo (Cloudflare R2, S3) e guardar só a URL no banco |
+| **Multi-usuário** | Adicionar `userId` nos models + NextAuth.js (ou Supabase Auth se migrar) + migrar para PostgreSQL |
+| **Concorrência alta** | Migrar SQLite → PostgreSQL (Render Postgres grátis ou Supabase) — troca `provider` no schema + ajusta connection string |
+| **Realtime** (notificações de lavanderia, etc) | Adicionar WebSocket ou Supabase Realtime (se migrar) |
+
+> 💡 **Quando migrar SQLite → PostgreSQL?** Quando: (1) precisar de multi-usuário com dados isolados, (2) tiver mais de ~500MB de dados, (3) quiser dashboard web pra ver/editar dados, ou (4) quiser banco independente do host. A migração com Prisma é tranquila: troca `provider = "postgresql"`, adiciona `@db.Text` nos campos grandes, ajusta `DATABASE_URL` para `postgresql://...`. O resto do código não muda.
 
 ### Models principais
 
@@ -637,17 +535,17 @@ O projeto usa o **z-ai-web-dev-sdk** que fornece:
 ## ❓ FAQ
 
 ### Onde ficam armazenadas as fotos das roupas?
-As fotos são redimensionadas para no máx. 800px no cliente, convertidas para JPEG (~50KB) e armazenadas como **base64** em colunas `@db.Text` no Supabase (PostgreSQL). Não há upload para serviços externos.
+As fotos são redimensionadas para no máx. 800px no cliente, convertidas para JPEG (~50KB) e armazenadas como **base64** em colunas `TEXT` do SQLite (arquivo `db/custom.db`). Não há upload para serviços externos.
 
 ### A IA funciona offline?
 Não. As chamadas de VLM/LLM precisam de internet e das credenciais do SDK configuradas.
 
 ### Como fazer backup dos meus dados?
-- **Via Supabase:** O Supabase faz backup automático. Para backup manual, vá em **Dashboard → Database → Backups** ou exporte via SQL Editor (`COPY ... TO ...`)
-- **Via Prisma:** Use `bun run db:migrate` para ter histórico de migrations versionadas
+- **Local:** Basta copiar o arquivo `db/custom.db` (tudo está lá dentro — peças, imagens, reservas, etc.)
+- **Render:** Copie do disco persistente (`/opt/data/custom.db`) via Shell ou use a aba de backup do disco
 
 ### Posso usar com múltiplos usuários?
-Atualmente é single-user (sem autenticação). Como o banco já é PostgreSQL no Supabase, para multi-usuário bastaria adicionar NextAuth.js (ou Supabase Auth) + um campo `userId` nos models. O Supabase já traz auth pronto.
+Atualmente é single-user (sem autenticação). Para multi-usuário, seria necessário adicionar NextAuth.js + adicionar `userId` nos models + idealmente migrar para PostgreSQL (que suporta concorrência melhor que SQLite).
 
 ### As combinações da IA são determinísticas?
 Não, o LLM gera combinações variadas a cada chamada. As regras (íntimas sempre disponíveis, respeitar reuso, excluir reservadas) são aplicadas via filtros antes de enviar para a IA.

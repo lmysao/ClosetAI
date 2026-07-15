@@ -5,7 +5,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -42,20 +42,20 @@ model Garment {
   reuseCount  Int      @default(0)
   lastWornAt  DateTime?
   /// imagem em base64 data URL
-  imageData   String    @db.Text
+  imageData   String
   brand       String?
   notes       String?
   favorite    Boolean  @default(false)
   /// imagem do verso (opcional) — para estampas/logos nas costas
-  backImage   String?   @db.Text
+  backImage   String?
   /// instruções de lavagem (ex: "lavar à mão em água fria", "não usar alvejante")
-  careInstructions String? @db.Text
+  careInstructions String?
   /// restrições de uso (ex: "não usar em dias de chuva", "evitar contato com água")
-  usageRestrictions String? @db.Text
+  usageRestrictions String?
   /// defeitos detectados pela IA ou pelo usuário (ex: "buraco perto da gola", "mancha vermelha no bolso")
-  defects     String?   @db.Text
+  defects     String?
   /// dicas de salvar/conservar a peça (ex: "mancha de gordura sai com detergente", "manga bufante volta ao normal com vapor")
-  careTips    String?   @db.Text
+  careTips    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -69,12 +69,12 @@ model Outfit {
   id         String   @id @default(cuid())
   name       String?
   /// JSON array de garment IDs
-  garmentIds String   @db.Text @default("[]")
+  garmentIds String @default("[]")
   /// tipo de evento para o qual foi sugerida
   eventType  String?
   eventTime  String?
   /// razão explicada pela IA
-  reason     String?  @db.Text
+  reason     String?
   wornAt     DateTime?
   /// marcada como uniforme (look fixo)
   isUniform  Boolean  @default(false)
@@ -90,7 +90,7 @@ model Outfit {
 model WashLog {
   id         String   @id @default(cuid())
   /// JSON array de garment IDs lavados
-  garmentIds String   @db.Text
+  garmentIds String
   washedAt   DateTime @default(now())
 }
 
@@ -102,7 +102,7 @@ model ShoppingTip {
   category  String
   /// baixa, media, alta
   priority  String   @default("media")
-  reason    String?  @db.Text
+  reason    String?
   /// acessorio, perfume, roupa, etc
   kind      String   @default("roupa")
   resolved  Boolean  @default(false)
@@ -135,9 +135,9 @@ model ReservedSet {
   /// condicoes: clima, local, observacoes
   conditions  String?
   /// JSON array de garment IDs reservados
-  garmentIds  String   @db.Text @default("[]")
+  garmentIds  String @default("[]")
   /// razao da escolha (preenchida pela IA se aplicavel)
-  reason      String?  @db.Text
+  reason      String?
   /// status: reservado, usado, cancelado
   status      String   @default("reservado")
   createdAt   DateTime @default(now())
@@ -162,10 +162,10 @@ model TravelPlan {
   /// duracao em dias
   duration    Int?
   /// JSON array de garment IDs sugeridos pela IA
-  garmentIds  String   @db.Text @default("[]")
+  garmentIds  String @default("[]")
   /// razao explicada pela IA
-  reason      String?  @db.Text
-  notes       String?  @db.Text
+  reason      String?
+  notes       String?
   /// status: planejada, em-viagem, concluida
   status      String   @default("planejada")
   createdAt   DateTime @default(now())
@@ -177,6 +177,6 @@ model TravelPlan {
 model ModelPhoto {
   id        String   @id @default(cuid())
   label     String?
-  imageData String   @db.Text
+  imageData String
   createdAt DateTime @default(now())
 }
