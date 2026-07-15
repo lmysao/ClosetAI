@@ -22,7 +22,7 @@
 - [🗄️ Configurando o Supabase (banco de dados)](#-configurando-o-supabase-banco-de-dados)
 - [☁️ Deploy no Render](#-deploy-no-render)
 - [⏰ Mantenha acordado com UptimeRobot](#-mantenha-acordado-com-uptimerobot)
-- [🗄️ Sobre o Banco de Dados (Supabase / PostgreSQL)](#-sobre-o-banco-de-dados-supabase--postgresql)
+- [🗄️ Implementação do Banco (Supabase / PostgreSQL)](#-implementação-do-banco-supabase--postgresql)
 - [🤖 Sobre a IA (VLM + LLM)](#-sobre-a-ia-vlm--llm)
 - [❓ FAQ](#-faq)
 - [📄 Licença](#-licença)
@@ -408,22 +408,203 @@ O plano **Free** do Render **hiberna** após 15 minutos de inatividade (o primei
 
 ---
 
-## 🗄️ Sobre o Banco de Dados (Supabase / PostgreSQL)
+## 🗄️ Implementação do Banco (Supabase / PostgreSQL)
 
-O projeto usa **Supabase** (PostgreSQL gerenciado) via Prisma ORM. As imagens das peças são armazenadas como **base64** em colunas `@db.Text` (text ilimitado) — funciona bem para um app pessoal e evita a necessidade de storage externo.
+### Arquitetura
 
-**Vantagens dessa abordagem:**
-- ✅ Banco independente do host (troque Render por Vercel/Railway sem migrar dados)
-- ✅ Dashboard web do Supabase para ver/editar dados manualmente
-- ✅ Backup automático (mesmo no free tier)
-- ✅ Free generoso: 500MB banco + 1GB storage + 50k requisições/mês
-- ✅ Pronto para escalar (auth, storage, realtime já inclusos)
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────────┐
+│   Next.js App   │────▶│   Prisma ORM    │────▶│   Supabase (PG)     │
+│  (Render/Vercel)│     │  (server-side)  │     │  postgresql://...   │
+└─────────────────┘     └─────────────────┘     └─────────────────────┘
+         │                                              │
+         │                                      ┌──────┴──────┐
+         │                                      │  Dashboard  │
+         │                                      │  (Table     │
+         │                                      │  Editor,    │
+         │                                      │  SQL, etc)  │
+         └────── imagens base64 @db.Text ───────┤             │
+                                                └─────────────┘
+```
 
-**Desvantagens:**
-- ⚠️ Free tier hiberna após 1 semana inativo (mesma necessidade de UptimeRobot)
-- ⚠️ Banco pode crescer (~50KB por imagem após resize para 800px) — 500MB comporta ~10.000 peças
+O app (Next.js) roda no host (Render/Vercel/Railway). O banco (PostgreSQL) roda no Supabase, **independente do host**. As imagens das peças são armazenadas como **base64** diretamente em colunas `@db.Text` do PostgreSQL — sem storage externo (S3, etc.).
 
-**Para escalar (multi-usuário / muitas imagens):** Mova as imagens base64 para o **Storage do Supabase** (1GB grátis) e guarde apenas a URL no banco. Adicione NextAuth.js para auth multi-usuário.
+### Como o schema está configurado
+
+O `prisma/schema.prisma` usa `provider = "postgresql"`:
+
+```prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+```
+
+**Campos `@db.Text`** — no PostgreSQL, o tipo `String` padrão do Prisma vira `TEXT` (ilimitado), mas marcamos explicitamente com `@db.Text` os campos que guardam dados grandes (imagens base64 ~50KB, JSON arrays, textos longos de razões/dicas). Isso garante performance e evita surpresas:
+
+```prisma
+model Garment {
+  // ...
+  imageData          String    @db.Text    // imagem frontal base64 (~50KB)
+  backImage          String?   @db.Text    // imagem do verso base64 (opcional)
+  careInstructions   String?   @db.Text    // texto livre de cuidados
+  usageRestrictions  String?   @db.Text
+  defects            String?   @db.Text
+  careTips           String?   @db.Text
+  // ...
+}
+
+model Outfit {
+  garmentIds  String  @db.Text @default("[]")  // JSON array de IDs
+  reason      String? @db.Text                  // explicação da IA
+}
+```
+
+Todos os campos `garmentIds` (JSON arrays serializados como string), `reason`, `notes`, `imageData` usam `@db.Text`.
+
+### Como as imagens são armazenadas
+
+**Fluxo completo:**
+
+1. **Cliente (browser):** usuário tira foto ou escolhe da galeria
+2. **`resizeImage()` em `src/lib/image-utils.ts`:** redimensiona para máx. 800px via canvas, converte para JPEG qualidade 0.82 → data URL `data:image/jpeg;base64,...` (~30-50KB)
+3. **API Route:** recebe a data URL e salva direto no banco via Prisma (`imageData: dataUrl`)
+4. **Banco (Supabase):** armazena como `TEXT` na coluna `imageData`
+5. **Leitura:** a API retorna a data URL, o `<img src={dataUrl}>` renderiza direto
+
+**Por que base64 e não storage externo?**
+- ✅ Simplifica muito — sem upload, sem URLs assinadas, sem CORS
+- ✅ Backup = dump do banco (tudo junto)
+- ✅ Funciona para app pessoal (500MB comporta ~10.000 peças)
+- ⚠️ Trade-off: banco cresce mais rápido. Para escalar, mover para Storage do Supabase (ver seção abaixo).
+
+### Duas conexões: Direct vs Pooler
+
+O Supabase oferece dois endpoints. **Use o certo em cada contexto:**
+
+| Contexto | Conexão | Porta | Quando usar |
+|----------|---------|-------|-------------|
+| **Local / migrations** | Direct | `5432` | `bun run db:push`, `bun run db:migrate`, `bun run seed` |
+| **Produção (web app)** | Pooler (PgBouncer) | `6543` | Render, Vercel, Railway — evita esgotar conexões |
+
+**Direct (porta 5432):**
+```
+postgresql://postgres:[SENHA]@db.[PROJETO].supabase.co:5432/postgres
+```
+
+**Pooler (porta 6543) — para produção:**
+```
+postgresql://postgres.[PROJETO]:[SENHA]@aws-0-[regiao].pooler.supabase.com:6543/postgres
+```
+
+> ⚠️ **Não use a direct (5432) em produção web!** Cada requisição abre uma conexão e o Supabase limita a ~60 conexões diretas no free tier. O pooler (PgBouncer) multiplica essa capacidade.
+
+### Como o Prisma Client é gerado
+
+O Prisma lê o `schema.prisma` e gera um client TypeScript tipado em `node_modules/@prisma/client`. Isso acontece:
+
+- **No install/build:** `bun run db:generate` (incluído no Build Command do Render)
+- **Após mudar o schema:** rode `bun run db:generate` localmente e reinicie o dev server
+
+O client é importado em `src/lib/db.ts`:
+
+```typescript
+import { PrismaClient } from '@prisma/client'
+
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined }
+export const db = globalForPrisma.prisma ?? new PrismaClient()
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
+```
+
+O cache global evita criar múltiplas instâncias em dev (hot reload). Todas as API routes usam `import { db } from '@/lib/db'`.
+
+### Como as tabelas são criadas
+
+**`bun run db:push`** lê o schema e sincroniza o banco (cria/altera tabelas). Diferente de `db:migrate`, não cria arquivos de migration — é ideal para desenvolvimento rápido.
+
+Para produção com histórico de mudanças versionadas, use `bun run db:migrate` (cria migrations em `prisma/migrations/` que podem ser commitadas e aplicadas em qualquer ambiente).
+
+### Como o seed funciona
+
+O `scripts/seed.ts` é um script standalone (não roda dentro do Next.js) que cria 31 peças demo usando o Prisma Client diretamente:
+
+```bash
+bun run seed              # cria se vazio
+bun run seed:force        # apaga tudo e recria
+```
+
+Também dá pra criar peças demo pela UI (botão "Criar peças demo" no dashboard), que chama a API `/api/garments/seed`.
+
+### Verificando que está funcionando
+
+Após `bun run db:push` + `bun run seed`:
+
+1. **Painel do Supabase** → **Table Editor** → veja as 8 tabelas: `Garment`, `Outfit`, `WashLog`, `ShoppingTip`, `EventItem`, `ReservedSet`, `TravelPlan`, `ModelPhoto`
+2. Clique em `Garment` → deve ter 31 linhas (peças demo)
+3. **SQL Editor** → rode uma query de teste:
+   ```sql
+   SELECT category, COUNT(*) as total
+   FROM "Garment"
+   GROUP BY category
+   ORDER BY total DESC;
+   ```
+4. Na aplicação (`bun run dev`), o dashboard deve mostrar "31 peças"
+
+### Troubleshooting comum
+
+**❌ `Error: P1001: Can't reach database server`**
+- Verifique a connection string (senha, host, porta)
+- Confirme que o projeto Supabase não está pausado (free tier hiberna após 1 semana inativo)
+- Teste a conexão: `bun run db:pull` (deve conectar e puxar o schema)
+
+**❌ `Error: P1010: User was denied access`**
+- Senha incorreta — pegue novamente no painel do Supabase
+- Confirme que está usando `postgres` como usuário (não um role customizado)
+
+**❌ `Error: P1003: Database does not exist`**
+- A connection string deve terminar com `/postgres` (o nome do banco default)
+- Verifique: `...supabase.co:5432/postgres`
+
+**❌ `Error: Timed out fetching a new connection from the connection pool` (em produção)**
+- Você está usando a conexão **direct** (5432) em vez da **pooler** (6543)
+- Troque para a URL do pooler no ambiente de produção
+
+**❌ App funciona local mas não no Render**
+- Confirme que `DATABASE_URL` no Render usa a **pooler** (porta 6543)
+- O Build Command inclui `bun run db:generate` (necessário para gerar o client)
+- Verifique os logs do Render — erros do Prisma aparecem lá
+
+**❌ Tabelas não aparecem no Table Editor do Supabase**
+- Rode `bun run db:push` novamente (pode ter falhado silenciosamente)
+- Confirme que está conectado ao projeto correto (mesmo ref no painel)
+- O Prisma cria as tabelas com aspas duplas (case-sensitive) — `Garment` não `garment`
+
+### Notas de migração (se vier do SQLite)
+
+Se você tinha dados no SQLite local e quer migrar para o Supabase:
+
+1. **Exporte os dados do SQLite:**
+   ```bash
+   # Instale sqlite3 CLI se não tiver
+   sqlite3 db/custom.db ".mode csv" ".output garments.csv" "SELECT * FROM Garment;" ".quit"
+   ```
+
+2. **Importe no Supabase via SQL Editor:**
+   - Abra o SQL Editor no painel do Supabase
+   - Use `COPY "Garment" FROM '...'` (via arquivo CSV upload) ou insira manualmente
+
+3. **Alternativa mais simples:** use o [Prisma Data Migration](https://www.prisma.io/docs/orm/prisma-migrate/workflows/data-migration) ou escreva um script que lê do SQLite e escreve no Postgres via Prisma.
+
+> 💡 Se está começando do zero (sem dados importantes), apenas rode `bun run db:push` + `bun run seed` no novo banco e pronto.
+
+### Caminho de escala (futuro)
+
+| Cenário | O que fazer |
+|---------|-------------|
+| **Banco crescendo (>400MB)** | Mover imagens base64 para o **Storage do Supabase** (1GB grátis), guardar só a URL no banco |
+| **Multi-usuário** | Adicionar `userId` nos models + usar **Supabase Auth** (já incluso) ou NextAuth.js |
+| **Muitas leituras** | Habilitar **Supabase Read Replicas** (plano Pro) ou adicionar cache com Redis |
+| **Realtime** (notificações de lavanderia, etc) | Usar **Supabase Realtime** (já incluso) em vez de polling |
 
 ### Models principais
 
