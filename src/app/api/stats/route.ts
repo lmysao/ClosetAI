@@ -5,6 +5,7 @@ import type { Stats } from '@/lib/types';
 
 // GET /api/stats — estatísticas gerais do guarda-roupa
 export async function GET() {
+  try {
   const all = await db.garment.findMany();
 
   const total = all.length;
@@ -86,4 +87,11 @@ export async function GET() {
   };
 
   return NextResponse.json({ stats });
+  } catch (error) {
+    console.error('[/api/stats] Erro ao buscar estatísticas:', error);
+    return NextResponse.json(
+      { error: 'Erro interno ao buscar estatísticas', details: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
+  }
 }
