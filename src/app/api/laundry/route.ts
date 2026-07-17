@@ -3,25 +3,31 @@ import { db } from '@/lib/db';
 
 // GET /api/laundry — retorna peças agrupadas por status (suja, reusavel, lavando)
 export async function GET() {
-  const suja = await db.garment.findMany({
-    where: { status: 'suja' },
-    orderBy: { lastWornAt: 'desc' },
-  });
-  const reusavel = await db.garment.findMany({
-    where: { status: 'reusavel' },
-    orderBy: { lastWornAt: 'desc' },
-  });
-  const lavando = await db.garment.findMany({
-    where: { status: 'lavando' },
-    orderBy: { updatedAt: 'desc' },
-  });
+  try {
+    const suja = await db.garment.findMany({
+      where: { status: 'suja' },
+      orderBy: { lastWornAt: 'desc' },
+    });
+    const reusavel = await db.garment.findMany({
+      where: { status: 'reusavel' },
+      orderBy: { lastWornAt: 'desc' },
+    });
+    const lavando = await db.garment.findMany({
+      where: { status: 'lavando' },
+      orderBy: { updatedAt: 'desc' },
+    });
 
-  const recentWashes = await db.washLog.findMany({
-    orderBy: { washedAt: 'desc' },
-    take: 10,
-  });
+    const recentWashes = await db.washLog.findMany({
+      orderBy: { washedAt: 'desc' },
+      take: 10,
+    });
 
-  return NextResponse.json({ suja, reusavel, lavando, recentWashes });
+    return NextResponse.json({ suja, reusavel, lavando, recentWashes });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Erro';
+    console.error('[laundry GET] erro:', msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
 
 // POST /api/laundry — marca peças como lavadas (volta para disponível)

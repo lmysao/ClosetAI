@@ -4,10 +4,16 @@ import { generateShoppingTips } from '@/lib/ai';
 
 // GET /api/shopping — lista dicas de compra salvas
 export async function GET() {
-  const tips = await db.shoppingTip.findMany({
-    orderBy: [{ resolved: 'asc' }, { createdAt: 'desc' }],
-  });
-  return NextResponse.json({ tips });
+  try {
+    const tips = await db.shoppingTip.findMany({
+      orderBy: [{ resolved: 'asc' }, { createdAt: 'desc' }],
+    });
+    return NextResponse.json({ tips });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Erro';
+    console.error('[shopping GET] erro:', msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
 
 // POST /api/shopping — gera novas dicas via IA
@@ -31,7 +37,7 @@ export async function POST() {
 
     const parsedOutfits = recentOutfits.map((o) => ({
       garmentIds: JSON.parse(o.garmentIds) as string[],
-      wornAt: o.wornAt.toISOString(),
+      wornAt: o.wornAt!.toISOString(),
     }));
 
     const tips = await generateShoppingTips(allGarments, parsedOutfits);
