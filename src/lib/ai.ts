@@ -1,22 +1,39 @@
-// Helpers de IA: VLM para analisar fotos de roupas, LLM para sugerir combinações e dicas de compra
-// z-ai-web-dev-sdk só pode ser usado no backend (server-side)
+// Helpers de IA: VLM (Gemini) para analisar fotos de roupas, LLM (Groq) para sugerir combinações e dicas de compra
+// Gemini e Groq só podem ser usados no backend (server-side)
 
-import ZAI from 'z-ai-web-dev-sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 import { CATEGORIES, FORMALITIES, PREFERRED_PERFUMES, OUTFIT_LAYERS, COLOR_PALETTE, defaultMaxReuses, canReuse, FABRIC_CARE, COMMON_DEFECTS, CARE_TIPS_LIBRARY, TRAVEL_CONTEXTS } from './constants';
 import type { Garment, AnalyzeResult, OutfitSuggestion, SuggestRequest, ShoppingTip, WornOutfitPiece, TravelSuggestRequest } from './types';
 
-let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
+// Gemini (Visão)
+let geminiInstance: GoogleGenerativeAI | null = null;
 
-async function getZAI() {
-  if (!zaiInstance) {
-    zaiInstance = await ZAI.create();
+function getGemini() {
+  if (!geminiInstance) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error('GEMINI_API_KEY não configurada');
+    geminiInstance = new GoogleGenerativeAI(apiKey);
   }
-  return zaiInstance;
+  return geminiInstance;
 }
 
-// ---- VLM: analisar foto de peça de roupa (com defeitos, cuidados, verso opcional) ----
+// Groq (Texto)
+let groqInstance: Groq | null = null;
+
+function getGroq() {
+  if (!groqInstance) {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) throw new Error('GROQ_API_KEY não configurada');
+    groqInstance = new Groq({ apiKey });
+  }
+  return groqInstance;
+}
+
+// ---- VLM (Gemini): analisar foto de peça de roupa (com defeitos, cuidados, verso opcional) ----
 export async function analyzeGarmentPhoto(imageBase64: string, backImageBase64?: string): Promise<AnalyzeResult> {
-  const zai = await getZAI();
+  const gemini = getGemini();
+  const modelName = process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash';
 
   const categoriesList = Object.entries(CATEGORIES)
     .map(([k, v]) => `${k} (${v.label})`)
@@ -45,23 +62,37 @@ export async function analyzeGarmentPhoto(imageBase64: string, backImageBase64?:
 Defeitos comuns a procurar: ${COMMON_DEFECTS.join(', ')}.
 Seja preciso com a categoria. Retorne SOMENTE o JSON.`;
 
-  const contentParts: Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }> = [
-    { type: 'text', text: prompt },
-    { type: 'image_url', image_url: { url: imageBase64 } },
-  ];
+  const model = gemini.getGenerativeModel({ model: modelName });
+
+  // Converter base64 para formato do Gemini
+  const imageData = imageBase64.includes('base64,') 
+    ? imageBase64.split('base64,')[1] 
+    : imageBase64;
+
+  const imagePart = {
+    inlineData: {
+      data: imageData,
+      mimeType: 'image/jpeg',
+    },
+  };
+
+  let contentParts: any[] = [{ text: prompt }, imagePart];
+  
   if (backImageBase64) {
-    contentParts.push({ type: 'text', text: 'Foto do verso:' });
-    contentParts.push({ type: 'image_url', image_url: { url: backImageBase64 } });
+    const backImageData = backImageBase64.includes('base64,') 
+      ? backImageBase64.split('base64,')[1] 
+      : backImageBase64;
+    contentParts.push({ text: 'Foto do verso:' });
+    contentParts.push({
+      inlineData: {
+        data: backImageData,
+        mimeType: 'image/jpeg',
+      },
+    });
   }
 
-  const response = await zai.chat.completions.createVision({
-    messages: [
-      { role: 'user', content: contentParts },
-    ],
-    thinking: { type: 'disabled' },
-  });
-
-  const content = response.choices[0]?.message?.content ?? '';
+  const response = await model.generateContent(contentParts);
+  const content = response.response.text() ?? '';
 
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
@@ -97,9 +128,10 @@ Seja preciso com a categoria. Retorne SOMENTE o JSON.`;
   return parsed;
 }
 
-// ---- VLM: analisar foto de pessoa vestida e separar peças (lote) ----
+// ---- VLM (Gemini): analisar foto de pessoa vestida e separar peças (lote) ----
 export async function analyzeWornOutfitPhoto(imageBase64: string): Promise<WornOutfitPiece[]> {
-  const zai = await getZAI();
+  const gemini = getGemini();
+  const modelName = process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash';
 
   const categoriesList = Object.entries(CATEGORIES)
     .map(([k, v]) => `${k} (${v.label})`)
@@ -134,20 +166,23 @@ export async function analyzeWornOutfitPhoto(imageBase64: string): Promise<WornO
 
 Identifique TODAS as peças visíveis: superior, inferior, íntimas se visíveis, calçado, casaco, acessórios (relógio, cinto, boné), etc. Não invente peças não visíveis. Retorne SOMENTE o JSON.`;
 
-  const response = await zai.chat.completions.createVision({
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: imageBase64 } },
-        ],
-      },
-    ],
-    thinking: { type: 'disabled' },
-  });
+  const model = gemini.getGenerativeModel({ model: modelName });
 
-  const content = response.choices[0]?.message?.content ?? '';
+  // Converter base64 para formato do Gemini
+  const imageData = imageBase64.includes('base64,') 
+    ? imageBase64.split('base64,')[1] 
+    : imageBase64;
+
+  const imagePart = {
+    inlineData: {
+      data: imageData,
+      mimeType: 'image/jpeg',
+    },
+  };
+
+  const response = await model.generateContent([{ text: prompt }, imagePart]);
+  const content = response.response.text() ?? '';
+  
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error('Não foi possível extrair JSON da foto vestida: ' + content.slice(0, 200));
@@ -180,12 +215,13 @@ Identifique TODAS as peças visíveis: superior, inferior, íntimas se visíveis
   return parsed.pieces ?? [];
 }
 
-// ---- LLM: sugerir conjunto para viagem ----
+// ---- LLM (Groq): sugerir conjunto para viagem ----
 export async function suggestTravelOutfit(
   availableGarments: Garment[],
   request: TravelSuggestRequest
 ): Promise<{ garmentIds: string[]; reason: string }> {
-  const zai = await getZAI();
+  const groq = getGroq();
+  const modelName = process.env.GROQ_TEXT_MODEL || 'llama-3.3-70b-versatile';
 
   const compact = availableGarments.map((g) => ({
     id: g.id,
@@ -231,12 +267,13 @@ Retorne APENAS JSON (sem markdown):
   "reason": "explicação em português do porquê desta seleção para esta viagem, considerando clima, contexto e dias"
 }`;
 
-  const completion = await zai.chat.completions.create({
+  const completion = await groq.chat.completions.create({
+    model: modelName,
     messages: [
       { role: 'assistant', content: 'Você é um consultor de viagens e estilo. Responda apenas com JSON válido.' },
       { role: 'user', content: prompt },
     ],
-    thinking: { type: 'disabled' },
+    temperature: 0.7,
   });
 
   const content = completion.choices[0]?.message?.content ?? '';
@@ -252,12 +289,13 @@ Retorne APENAS JSON (sem markdown):
   }
 }
 
-// ---- LLM: gerar 3 sugestões de combinação ----
+// ---- LLM (Groq): gerar 3 sugestões de combinação ----
 export async function suggestOutfits(
   availableGarments: Garment[],
   request: SuggestRequest
 ): Promise<OutfitSuggestion[]> {
-  const zai = await getZAI();
+  const groq = getGroq();
+  const modelName = process.env.GROQ_TEXT_MODEL || 'llama-3.3-70b-versatile';
 
   // Mapear peças para um formato compacto para o LLM
   const compact = availableGarments.map((g) => ({
@@ -313,7 +351,8 @@ Retorne APENAS um JSON (sem markdown) com esta estrutura:
   ]
 }`;
 
-  const completion = await zai.chat.completions.create({
+  const completion = await groq.chat.completions.create({
+    model: modelName,
     messages: [
       {
         role: 'assistant',
@@ -321,7 +360,7 @@ Retorne APENAS um JSON (sem markdown) com esta estrutura:
       },
       { role: 'user', content: prompt },
     ],
-    thinking: { type: 'disabled' },
+    temperature: 0.8,
   });
 
   const content = completion.choices[0]?.message?.content ?? '';
@@ -363,12 +402,13 @@ Retorne APENAS um JSON (sem markdown) com esta estrutura:
   return result;
 }
 
-// ---- LLM: dicas de compras + acessórios + perfumes ----
+// ---- LLM (Groq): dicas de compras + acessórios + perfumes ----
 export async function generateShoppingTips(
   allGarments: Garment[],
   recentOutfits: Array<{ garmentIds: string[]; wornAt: string }>
 ): Promise<Array<Omit<ShoppingTip, 'id' | 'resolved' | 'createdAt'>>> {
-  const zai = await getZAI();
+  const groq = getGroq();
+  const modelName = process.env.GROQ_TEXT_MODEL || 'llama-3.3-70b-versatile';
 
   // Contar peças por categoria
   const byCategory: Record<string, number> = {};
@@ -429,7 +469,8 @@ Retorne APENAS JSON (sem markdown):
   ]
 }`;
 
-  const completion = await zai.chat.completions.create({
+  const completion = await groq.chat.completions.create({
+    model: modelName,
     messages: [
       {
         role: 'assistant',
@@ -437,7 +478,7 @@ Retorne APENAS JSON (sem markdown):
       },
       { role: 'user', content: prompt },
     ],
-    thinking: { type: 'disabled' },
+    temperature: 0.7,
   });
 
   const content = completion.choices[0]?.message?.content ?? '';
@@ -456,14 +497,15 @@ Retorne APENAS JSON (sem markdown):
   return parsed.tips ?? [];
 }
 
-// ---- LLM: rotação inteligente — verificar peças subutilizadas ----
+// ---- LLM (Groq): rotação inteligente — verificar peças subutilizadas ----
 export async function analyzeRotation(allGarments: Garment[]): Promise<{
   score: number;
   feedback: string[];
   overused: string[];
   underused: string[];
 }> {
-  const zai = await getZAI();
+  const groq = getGroq();
+  const modelName = process.env.GROQ_TEXT_MODEL || 'llama-3.3-70b-versatile';
   const now = Date.now();
 
   const stats = allGarments.map((g) => ({
@@ -491,12 +533,13 @@ Retorne APENAS JSON:
   "underused": ["nome1"]
 }`;
 
-  const completion = await zai.chat.completions.create({
+  const completion = await groq.chat.completions.create({
+    model: modelName,
     messages: [
       { role: 'assistant', content: 'Responda apenas com JSON válido.' },
       { role: 'user', content: prompt },
     ],
-    thinking: { type: 'disabled' },
+    temperature: 0.5,
   });
 
   const content = completion.choices[0]?.message?.content ?? '';

@@ -103,9 +103,10 @@
 | **Framework** | [Next.js 16](https://nextjs.org/) (App Router, output standalone) |
 | **Linguagem** | [TypeScript 5](https://www.typescriptlang.org/) |
 | **Estilo** | [Tailwind CSS 4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) |
-| **Banco de dados** | [Prisma ORM](https://www.prisma.io/) + SQLite (local) |
+| **Banco de dados** | [Prisma ORM](https://www.prisma.io/) + SQLite (local) / Supabase PostgreSQL (produção) |
 | **Estado** | [Zustand](https://zustand.docs.pmnd.rs/) (cliente) + [TanStack Query](https://tanstack.com/query) (servidor) |
-| **IA** | [z-ai-web-dev-sdk](https://www.npmjs.com/package/z-ai-web-dev-sdk) (VLM + LLM) |
+| **IA - Visão** | [Google Gemini](https://ai.google.dev/gemini-api/docs) (VLM para análise de imagens) |
+| **IA - Texto** | [Groq](https://console.groq.com/docs) (LLM para geração de texto) |
 | **Runtime/PackageManager** | [Bun](https://bun.sh/) |
 | **Ícones** | [lucide-react](https://lucide.dev/) |
 | **Gráficos** | [Recharts](https://recharts.org/) |
@@ -166,18 +167,45 @@ Abra **http://localhost:3000** no navegador. 🎉
 Crie um arquivo `.env` na raiz do projeto (use `.env.example` como base):
 
 ```env
-# Banco de dados SQLite local (arquivo na pasta db/)
-DATABASE_URL="file:/home/z/my-project/db/custom.db"
+# Banco de dados SQLite local (desenvolvimento)
+DATABASE_URL="file:./dev.db"
 
-# Em produção no Render, use disco persistente (ver seção Deploy):
-# DATABASE_URL="file:/opt/data/custom.db"
+# Supabase PostgreSQL (produção)
+SUPABASE_DATABASE_URL="postgresql://postgres:[senha]@db.[projeto].supabase.co:5432/postgres"
+NEXT_PUBLIC_SUPABASE_URL="https://[projeto].supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="sua_chave_anonima"
 
-# Credenciais da IA (z-ai-web-dev-sdk)
-# Configure conforme a documentação do SDK
-# ZAI_API_KEY=sua_chave_aqui  # se aplicável
+# Gemini API (visão)
+GEMINI_API_KEY="sua_gemini_api_key"
+GEMINI_VISION_MODEL="gemini-2.5-flash"
+
+# Groq API (texto)
+GROQ_API_KEY="sua_groq_api_key"
+GROQ_TEXT_MODEL="llama-3.3-70b-versatile"
+
+# Ambiente
+NODE_ENV="development"
 ```
 
 > ⚠️ **Nunca commite o `.env`!** Ele já está no `.gitignore`.
+
+### Obter as Credenciais
+
+**Gemini API:**
+1. Acesse [ai.google.dev](https://ai.google.dev/)
+2. Crie um projeto e gere uma API Key
+3. Plano gratuito: 15 requisições de visão/dia, 1.500 de texto/dia
+
+**Groq API:**
+1. Acesse [console.groq.com](https://console.groq.com/)
+2. Crie uma conta gratuita
+3. Gere uma API Key em Settings → API Keys
+4. Plano gratuito: modelos Llama 3.3 70B gratuitos com alta velocidade
+
+**Supabase:**
+1. Acesse [supabase.com](https://supabase.com/)
+2. Crie um projeto gratuito (500MB PostgreSQL)
+3. Obtenha URL, anon key e database URL no painel
 
 ---
 
@@ -247,74 +275,63 @@ DATABASE_URL="file:/home/z/my-project/db/custom.db"
 
 ## ☁️ Deploy no Render
 
-O Render hospeda a aplicação Next.js. O banco SQLite fica num **disco persistente** montado no serviço.
+O projeto agora usa **Supabase PostgreSQL** para produção, eliminando a necessidade de disco persistente no Render.
 
-### Passo 1: Prepare o repositório
+### Passo 1: Configure o Supabase
+
+1. Acesse [supabase.com](https://supabase.com/) e crie um projeto gratuito
+2. Obtenha as credenciais no painel:
+   - Project URL
+   - anon key
+   - Database URL (Settings → Database → Connection string)
+3. Configure as variáveis de ambiente (ver seção acima)
+
+### Passo 2: Prepare o repositório
 
 ```bash
 git add .
-git commit -m "feat: ClosetAI - guarda-roupa inteligente com IA"
+git commit -m "feat: migrar para Gemini+Groq e Supabase"
 git push origin main
 ```
 
-> ✅ O `.gitignore` já está configurado: `.env`, `db/`, `node_modules`, `.next/` não são commitados.
+### Passo 3: Crie o serviço no Render
 
-### Passo 2: Crie o serviço no Render
-
-1. Acesse [render.com](https://render.com/) e faça login (pode ser com GitHub)
+1. Acesse [render.com](https://render.com/) e faça login
 2. Clique em **New +** → **Web Service**
 3. Conecte seu repositório do GitHub
 4. Configure:
 
 | Campo | Valor |
 |-------|-------|
-| **Name** | `closetai` (ou o nome que preferir) |
-| **Runtime** | `Node` (ou deixe auto-detectar) |
+| **Name** | `closetai` |
+| **Runtime** | `Node` |
 | **Build Command** | `bun install && bun run db:generate && bun run build` |
 | **Start Command** | `bun .next/standalone/server.js` |
-| **Plan** | `Free` (ou `Starter` $7/mês para não hibernar) |
+| **Plan** | `Free` |
 
-> ⚠️ **Start Command:** O script `start` do `package.json` usa `2>&1 | tee server.log` que pode falhar no Render. Use o comando direto `bun .next/standalone/server.js`.
+### Passo 4: Configure variáveis de ambiente no Render
 
-### Passo 3: Disco persistente (IMPORTANTE para SQLite)
-
-Como o Render tem filesystem efêmero (a cada deploy o disco é resetado), você precisa de um **Disk** para o banco SQLite não ser perdido:
-
-1. Na aba **Disks** do serviço, clique em **Add Disk**
-2. Configure:
-   - **Name:** `closetai-data`
-   - **Mount Path:** `/opt/data`
-   - **Size:** `1 GB` (suficiente para SQLite + imagens base64)
-3. Configure a variável de ambiente (ver Passo 4):
-
-### Passo 4: Configure as variáveis de ambiente no Render
-
-Na aba **Environment** do serviço, adicione:
+Na aba **Environment**, adicione:
 
 | Key | Value |
 |-----|-------|
-| `DATABASE_URL` | `file:/opt/data/custom.db` (caminho no disco persistente) |
+| `SUPABASE_DATABASE_URL` | `postgresql://postgres:[senha]@db.[projeto].supabase.co:5432/postgres` |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://[projeto].supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `sua_chave_anonima` |
+| `GEMINI_API_KEY` | `sua_gemini_api_key` |
+| `GEMINI_VISION_MODEL` | `gemini-2.5-flash` |
+| `GROQ_API_KEY` | `sua_groq_api_key` |
+| `GROQ_TEXT_MODEL` | `llama-3.3-70b-versatile` |
 | `NODE_ENV` | `production` |
-
-Adicione também as credenciais da IA conforme o SDK exigir.
 
 ### Passo 5: Deploy
 
-1. Clique em **Create Web Service** (ou **Save Changes** se já existir)
-2. Aguarde o build (2-5 minutos na primeira vez)
-3. Quando terminar, acesse a URL: `https://closetai.onrender.com`
-4. Na primeira vez após o deploy, **rode a migration + seed** via Shell:
-   - Vá em **Shell** no Render
-   - Execute:
-     ```bash
-     bun run db:push
-     bun run seed
-     ```
-   - Isso cria o banco no disco persistente e popula com peças demo
+1. Clique em **Create Web Service**
+2. Aguarde o build (2-5 minutos)
+3. Acesse a URL gerada
+4. O schema será criado automaticamente no Supabase via Prisma
 
-> 🔄 **Deploy automático:** Habilite "Auto-Deploy" no Render para re-deployar a cada `git push` na `main`.
->
-> ⚠️ **Atenção:** O disco persistente é **necessário** com SQLite. Sem ele, o banco é perdido a cada deploy. Para evitar essa gestão, migre para PostgreSQL (Render Postgres grátis ou Supabase) — ver seção "Caminho de escala".
+> � **Plano detalhado:** Veja `RENDER_DEPLOYMENT_PLAN.md` para instruções completas.
 
 ---
 
@@ -518,17 +535,23 @@ Após `bun run db:push` + `bun run seed`:
 
 ## 🤖 Sobre a IA (VLM + LLM)
 
-O projeto usa o **z-ai-web-dev-sdk** que fornece:
+O projeto usa **Gemini** (visão) e **Groq** (texto), ambos com planos gratuitos:
 
-- **VLM (Vision Language Model)** — analisa fotos de roupas:
+- **Gemini (Google AI)** — VLM para análise de imagens:
   - `analyzeGarmentPhoto(image, backImage?)` → categoria, cor, tecido, defeitos, cuidados, etc.
   - `analyzeWornOutfitPhoto(image)` → separa peças de uma foto de pessoa vestida
-- **LLM (Large Language Model)** — gera texto inteligente:
+  - Modelo: `gemini-2.5-flash` (rápido e gratuito)
+  - Limite gratuito: 15 requisições de visão/dia
+
+- **Groq** — LLM para geração de texto:
   - `suggestOutfits(garments, event)` → 3 combinações para o evento
   - `suggestTravelOutfit(garments, trip)` → conjunto para viagem
   - `generateShoppingTips(garments, history)` → dicas de compra
+  - `analyzeRotation(garments)` → análise de rotação
+  - Modelo: `llama-3.3-70b-versatile` (alta velocidade com LPU)
+  - Limite gratuito: modelos gratuitos com alta taxa de requisições
 
-> ⚠️ O SDK é **server-side only**. Nunca use no cliente (pode expor credenciais).
+> ⚠️ Ambos SDKs são **server-side only**. Nunca use no cliente (pode expor credenciais).
 
 ---
 
